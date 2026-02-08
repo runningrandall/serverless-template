@@ -1,0 +1,131 @@
+import * as cdk from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as path from 'path';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+
+export class InfraStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    // 1. DynamoDB Table
+    const table = new dynamodb.Table(this, 'TemplateTable', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT for production
+    });
+
+    // 2. API Gateway
+    const api = new apigateway.RestApi(this, 'TemplateApi', {
+      restApiName: 'Template Service',
+      description: 'This service serves the template app.',
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+      },
+      deployOptions: {
+        stageName: 'dev',
+      },
+    });
+
+    // 3. Lambda Functions
+    const backendPath = path.join(__dirname, '../../backend/src/handlers');
+
+    const commonProps = {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      environment: {
+        TABLE_NAME: table.tableName,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['aws-sdk'], // aws-sdk v3 is included in runtime but good to be explicit for others
+      },
+    };
+
+    const createItemLambda = new nodejs.NodejsFunction(this, 'createItemLambda', {
+      entry: path.join(backendPath, 'createItem.ts'),
+      ...commonProps,
+    });
+
+    const getItemLambda = new nodejs.NodejsFunction(this, 'getItemLambda', {
+      entry: path.join(backendPath, 'getItem.ts'),
+      ...commonProps,
+    });
+
+    const listItemsLambda = new nodejs.NodejsFunction(this, 'listItemsLambda', {
+      entry: path.join(backendPath, 'listItems.ts'),
+      ...commonProps,
+    });
+
+    const deleteItemLambda = new nodejs.NodejsFunction(this, 'deleteItemLambda', {
+      entry: path.join(backendPath, 'deleteItem.ts'),
+      ...commonProps,
+    });
+
+    // 4. Permissions
+    table.grantWriteData(createItemLambda);
+    table.grantReadData(getItemLambda);
+    table.grantReadData(listItemsLambda);
+    table.grantWriteData(deleteItemLambda);
+
+    // 5. API Gateway Integrations
+    const items = api.root.addResource('items');
+    items.addMethod('GET', new apigateway.LambdaIntegration(listItemsLambda));
+    items.addMethod('POST', new apigateway.LambdaIntegration(createItemLambda));
+
+    const item = items.addResource('{itemId}');
+    item.addMethod('GET', new apigateway.LambdaIntegration(getItemLambda));
+    item.addMethod('DELETE', new apigateway.LambdaIntegration(deleteItemLambda));
+
+    // Output API URL
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: api.url,
+    });
+
+    // 6. Frontend Deployment (S3 + CloudFront)
+    const websiteBucket = new s3.Bucket(this, 'WebsiteBucket', {
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+    });
+
+    const distribution = new cloudfront.Distribution(this, 'Distribution', {
+      defaultBehavior: {
+        origin: new origins.S3Origin(websiteBucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
+        compress: true,
+      },
+      defaultRootObject: 'index.html',
+      errorResponses: [
+        {
+          httpStatus: 403,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(0),
+        },
+        {
+          httpStatus: 404,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(0),
+        },
+      ],
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // Cheapest
+    });
+
+    new cdk.CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
+    new cdk.CfnOutput(this, 'DistributionDomainName', { value: distribution.distributionDomainName });
+    new cdk.CfnOutput(this, 'WebsiteBucketName', { value: websiteBucket.bucketName });
+  }
+}

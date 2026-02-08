@@ -1,0 +1,13 @@
+{
+    "name": "hmaas-2-monorepo",
+    "private": true,
+    "scripts": {
+        "build": "pnpm -r run build",
+        "test": "pnpm -r run test",
+        "deploy": "pnpm --filter infra run deploy",
+        "dev": "pnpm --filter frontend run dev"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.3"
+    }
+}
