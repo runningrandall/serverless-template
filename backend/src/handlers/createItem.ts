@@ -1,5 +1,9 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { ItemEntity } from "../entities/item";
+import { EventBridgeClient, PutEventsCommand } from "@aws-sdk/client-eventbridge";
+
+const eventBridge = new EventBridgeClient({});
+const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME;
 
 export const handler: APIGatewayProxyHandler = async (event) => {
     try {
@@ -9,6 +13,24 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
         const body = JSON.parse(event.body);
         const result = await ItemEntity.create(body).go();
+
+        // Publish Event
+        if (EVENT_BUS_NAME) {
+            try {
+                await eventBridge.send(new PutEventsCommand({
+                    Entries: [{
+                        Source: "hmaas.api",
+                        DetailType: "ItemCreated",
+                        Detail: JSON.stringify(result.data),
+                        EventBusName: EVENT_BUS_NAME,
+                    }]
+                }));
+                console.log("Published ItemCreated event");
+            } catch (err) {
+                console.error("Failed to publish event:", err);
+                // Don't fail the request if event publishing fails, but log it
+            }
+        }
 
         return {
             statusCode: 201,

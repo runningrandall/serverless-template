@@ -8,6 +8,8 @@ import * as path from 'path';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { AuthStack } from './auth-stack';
@@ -114,6 +116,34 @@ export class InfraStack extends cdk.Stack {
       handler: authLambda,
       resultsCacheTtl: cdk.Duration.seconds(0), // Disable cache for testing
     });
+
+    // 8. EventBridge Setup
+    const eventBus = new events.EventBus(this, 'HmaasEventBus', {
+      eventBusName: `HmaasEventBus-${props.stageName}`,
+    });
+
+    const processEventLambda = new nodejs.NodejsFunction(this, 'processEventLambda', {
+      entry: path.join(backendPath, 'processEvent.ts'),
+      ...commonProps,
+    });
+
+    // Rule: Trigger on 'ItemCreated' from 'hmaas.api'
+    new events.Rule(this, 'ItemCreatedRule', {
+      eventBus: eventBus,
+      eventPattern: {
+        source: ['hmaas.api'],
+        detailType: ['ItemCreated'],
+      },
+      targets: [new targets.LambdaFunction(processEventLambda)],
+    });
+
+    // Grant Publish permissions to API Lambdas
+    eventBus.grantPutEventsTo(createItemLambda);
+    eventBus.grantPutEventsTo(deleteItemLambda);
+
+    // Add EVENT_BUS_NAME to Lambda environment
+    createItemLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
+    deleteItemLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
 
     // 5. API Gateway Integrations
     const items = api.root.addResource('items');

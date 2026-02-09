@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { handler } from '../../src/handlers/createItem';
 import { ItemEntity } from '../../src/entities/item';
 
@@ -9,12 +9,27 @@ vi.mock('../../src/entities/item', () => ({
     },
 }));
 
+// Mock EventBridge Client
+const mockSend = vi.fn();
+vi.mock('@aws-sdk/client-eventbridge', () => ({
+    EventBridgeClient: vi.fn(() => ({
+        send: mockSend,
+    })),
+    PutEventsCommand: vi.fn(),
+}));
+
 describe('createItem handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // Default: env var not set
+        delete process.env.EVENT_BUS_NAME;
     });
 
-    it('should create an item successfully', async () => {
+    afterEach(() => {
+        delete process.env.EVENT_BUS_NAME;
+    });
+
+    it('should create an item successfully (no event published if env not set)', async () => {
         const mockItem = { itemId: '123', name: 'Test Item', description: 'desc' };
 
         // Mock chainable .go() method
@@ -32,6 +47,24 @@ describe('createItem handler', () => {
             body: JSON.stringify(mockItem),
         });
         expect(ItemEntity.create).toHaveBeenCalledWith({ name: 'Test Item', description: 'desc' });
+        expect(mockSend).not.toHaveBeenCalled();
+    });
+
+    it('should create an item and publish event when env var is set', async () => {
+        process.env.EVENT_BUS_NAME = 'test-bus';
+        const mockItem = { itemId: '123', name: 'Test Item', description: 'desc' };
+
+        const mockGo = vi.fn().mockResolvedValue({ data: mockItem });
+        (ItemEntity.create as any).mockReturnValue({ go: mockGo });
+
+        const event = {
+            body: JSON.stringify({ name: 'Test Item', description: 'desc' }),
+        } as any;
+
+        await handler(event, {} as any, {} as any);
+
+        expect(mockSend).toHaveBeenCalledTimes(1);
+        expect(mockSend).toHaveBeenCalledWith(expect.any(Object));
     });
 
     it('should return 400 if body is missing', async () => {
