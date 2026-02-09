@@ -58,19 +58,19 @@ To run the backend and database locally:
 1.  **Prerequisites**: Docker & AWS SAM CLI (`brew install aws-sam-cli`).
 2.  **Start Local DB**:
     ```bash
-    make local-db
+    pnpm db:start
     ```
 3.  **Initialize DB Table**:
     ```bash
-    make init-db
+    pnpm db:init
     ```
 4.  **Seed Local DB** (Optional):
     ```bash
-    make seed-db
+    pnpm db:seed
     ```
 5.  **Start Local API**:
     ```bash
-    make local-api
+    pnpm api:start
     ```
     This runs the API at `http://127.0.0.1:3000`.
 
@@ -79,7 +79,13 @@ To run the backend and database locally:
     ```bash
     NEXT_PUBLIC_API_URL=http://127.0.0.1:3000/
     ```
-     Then run `make dev`.
+    Then run `pnpm dev:frontend`.
+
+6.  **Start Stack (All-in-One)**:
+    Alternatively, you can start the database, seed it, and run both backend and frontend with a single command:
+    ```bash
+    pnpm dev
+    ```
 
 ## Architecture Details
 

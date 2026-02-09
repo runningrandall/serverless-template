@@ -11,9 +11,15 @@
         "test": "pnpm -r run test",
         "deploy": "pnpm --filter infra run deploy",
         "dev": "pnpm --filter frontend run dev",
-        "prepare": "husky"
+        "prepare": "husky",
+        "db:start": "./scripts/start-local-db.sh",
+        "db:init": "./scripts/init-local-db.sh",
+        "db:seed": "./scripts/seed-local-db.sh",
+        "api:start": "./scripts/start-local-api.sh",
+        "dev:backend": "pnpm --filter backend run build --watch & pnpm api:start"
     },
     "devDependencies": {
+        "concurrently": "^9.2.1",
         "husky": "^9.1.7",
         "lint-staged": "^16.2.7",
         "typescript": "^5.3.3"
