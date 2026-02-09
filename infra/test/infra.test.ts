@@ -7,9 +7,12 @@ import { AuthStack } from '../lib/auth-stack';
 test('Infra Stack Created', () => {
     const app = new cdk.App();
     // WHEN
-    const authStack = new AuthStack(app, 'AuthStack');
+    const authStack = new AuthStack(app, 'AuthStack', {
+        stageName: 'test',
+    });
     const infraStack = new InfraStack(app, 'InfraStack', {
         auth: authStack,
+        stageName: 'test',
     });
 
     // THEN
@@ -24,7 +27,7 @@ test('Infra Stack Created', () => {
     // Verify API Gateway
     template.resourceCountIs('AWS::ApiGateway::RestApi', 1);
     template.hasResourceProperties('AWS::ApiGateway::RestApi', {
-        Name: 'Template Service',
+        Name: 'Template Service test',
     });
 
     // Verify Frontend Resources
@@ -34,7 +37,9 @@ test('Infra Stack Created', () => {
 
 test('Auth Stack Created', () => {
     const app = new cdk.App();
-    const authStack = new AuthStack(app, 'AuthStack');
+    const authStack = new AuthStack(app, 'AuthStack', {
+        stageName: 'test',
+    });
     const template = Template.fromStack(authStack);
 
     // Verify User Pool

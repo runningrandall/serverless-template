@@ -14,6 +14,7 @@ import { AuthStack } from './auth-stack';
 
 interface InfraStackProps extends cdk.StackProps {
   auth: AuthStack;
+  stageName: string;
 }
 
 export class InfraStack extends cdk.Stack {
@@ -30,14 +31,14 @@ export class InfraStack extends cdk.Stack {
 
     // 2. API Gateway
     const api = new apigateway.RestApi(this, 'TemplateApi', {
-      restApiName: 'Template Service',
+      restApiName: `Template Service ${props.stageName}`,
       description: 'This service serves the template app.',
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
       },
       deployOptions: {
-        stageName: 'dev',
+        stageName: props.stageName, // Use the stage name for the API Gateway stage too
       },
     });
 

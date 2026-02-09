@@ -3,12 +3,16 @@ import { Construct } from 'constructs';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as verifiedpermissions from 'aws-cdk-lib/aws-verifiedpermissions';
 
+interface AuthStackProps extends cdk.StackProps {
+    stageName: string;
+}
+
 export class AuthStack extends cdk.Stack {
     public readonly userPool: cognito.UserPool;
     public readonly userPoolClient: cognito.UserPoolClient;
     public readonly policyStoreId: string;
 
-    constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    constructor(scope: Construct, id: string, props: AuthStackProps) {
         super(scope, id, props);
 
         // 1. Cognito User Pool

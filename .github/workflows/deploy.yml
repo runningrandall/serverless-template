@@ -42,35 +42,58 @@ jobs:
       - name: Run Linting
         run: pnpm --filter frontend lint
 
-      - name: Deploy Infrastructure (Main Only)
-        if: github.ref == 'refs/heads/main'
+      - name: Deploy Infrastructure
         run: pnpm --filter infra run deploy --require-approval never
 
       - name: Get Bucket Name
         id: bucket
         run: |
-          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name InfraStack --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucketName'].OutputValue" --output text)
+          # Determine STAGE_NAME (Logic must match bin/infra.ts)
+          if [ -n "${{ github.head_ref }}" ]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          # Sanitize: clean alphanumeric
+          STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
+          STACK_NAME="HmaasInfraStack-$STAGE_NAME"
+          
+          echo "Determined Stage: $STAGE_NAME"
+          echo "Looking for Stack: $STACK_NAME"
+
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucketName'].OutputValue" --output text)
           echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
           echo "Found bucket: $BUCKET_NAME"
 
       - name: Build Frontend
         run: |
-          # Remove leading 'refs/heads/' if present, or just use ref_name
-          BRANCH_NAME="${{ github.ref_name }}"
-          # Clean branch name for URL safety if needed, but assuming simple names for now
-          echo "Building for branch: $BRANCH_NAME"
+          if [ -n "${{ github.head_ref }}" ]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
+           
+          # Set BasePath to /stage-name (optional, if we want multi-site hosting on same domain)
+          # For S3 website hosting, each bucket is a domain, so BasePath might not be needed unless behind a single CloudFront with paths.
+          # Assuming separate distributions/buckets per stack, no base path needed?
+          # User didn't ask for path-based routing, but "ephemeral envs".
+          # We'll use the Stage Name as base path just in case, or leave it root if it's a dedicated bucket.
+          # Since existing 'deploy.yml' set it to branch name, we keep it but sanitized?
+          # Actually, separate buckets means separate domains (if using S3 website endpoints) or separate CF distributions.
+          # If separate CF distributions, we can deploy to root '/'.
           
-          # Set BasePath to /branch-name
-          export NEXT_PUBLIC_BASE_PATH="/$BRANCH_NAME"
+          echo "Building for stage: $STAGE_NAME"
+          # export NEXT_PUBLIC_BASE_PATH="/$STAGE_NAME" # Commenting out as we have dedicated bucket/distro
           
-          # Also set the API URL if needed (can be dynamic or fixed)
-          # export NEXT_PUBLIC_API_URL=...
+          # We might need API URL
+          STACK_NAME="HmaasInfraStack-$STAGE_NAME"
+          API_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          export NEXT_PUBLIC_API_URL=$API_URL
           
           pnpm --filter frontend run build
 
       - name: Deploy to S3
         run: |
-          BRANCH_NAME="${{ github.ref_name }}"
-          aws s3 sync frontend/out "s3://${{ env.BUCKET_NAME }}/$BRANCH_NAME" --delete
-          
-          echo "Deployed to: s3://${{ env.BUCKET_NAME }}/$BRANCH_NAME/"
+          aws s3 sync frontend/out "s3://${{ env.BUCKET_NAME }}" --delete
+          echo "Deployed to: s3://${{ env.BUCKET_NAME }}"
