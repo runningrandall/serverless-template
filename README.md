@@ -12,8 +12,9 @@ A production-ready, full-stack serverless template built with modern best practi
 | **Auth** | Amazon Cognito + Amazon Verified Permissions (Cedar) |
 | **Infrastructure** | AWS CDK (TypeScript), 3 stacks |
 | **CI/CD** | GitHub Actions |
-| **Observability** | AWS Powertools (Logger, Tracer), CloudWatch Dashboard |
-| **Testing** | Vitest (unit), Cypress (E2E + a11y), Jest (infra) |
+| **Observability** | AWS Powertools (Logger, Tracer, Metrics), CloudWatch Dashboard |
+| **Security** | WAF, cdk-nag, Lambda Authorizer |
+| **Testing** | Vitest (unit), Cypress (E2E + a11y), Jest (infra), Integration tests |
 | **Docs** | Storybook 10, OpenAPI (Swagger UI) |
 
 ## Project Structure
@@ -33,16 +34,15 @@ A production-ready, full-stack serverless template built with modern best practi
 │   ├── stories/             # Storybook stories
 │   └── .storybook/          # Storybook configuration
 ├── infra/                   # AWS CDK infrastructure
-│   ├── bin/infra.ts         # CDK app entry point (cdk-nag enabled)
+│   ├── bin/infra.ts         # CDK app entry point (cdk-nag + tags)
 │   └── lib/
 │       ├── auth-stack.ts    # Cognito User Pool, Verified Permissions
 │       ├── frontend-stack.ts# S3 + CloudFront (prod/non-prod)
-│       └── infra-stack.ts   # API GW, Lambda, DynamoDB, EventBridge, Dashboard
-├── scripts/                 # Local dev: DB start, init, seed, API start
+│       └── infra-stack.ts   # API GW, Lambda, DynamoDB, EventBridge, WAF, Alarms, Dashboard
+├── scripts/                 # Local dev + integration tests
 ├── templates/               # Plop code generators
 ├── .github/workflows/       # CI/CD pipeline
-├── .husky/                  # Git hooks (pre-commit lint, pre-push test)
-└── plopfile.js              # Code scaffolding configuration
+└── .husky/                  # Git hooks (pre-commit lint, pre-push test)
 ```
 
 ## Prerequisites
@@ -60,13 +60,16 @@ A production-ready, full-stack serverless template built with modern best practi
 # 1. Install dependencies
 pnpm install
 
-# 2. Deploy to AWS (uses your OS username as stage name)
+# 2. Copy environment variables
+cp .env.example .env
+
+# 3. Deploy to AWS (uses your OS username as stage name)
 pnpm deploy
 
-# 3. Configure frontend
+# 4. Configure frontend
 echo "NEXT_PUBLIC_API_URL=<your-api-url-from-deploy-output>" > frontend/.env.local
 
-# 4. Start frontend
+# 5. Start frontend
 pnpm dev
 ```
 
@@ -79,7 +82,7 @@ pnpm dev           # Start frontend (Next.js dev server)
 pnpm db:start      # Start DynamoDB Local (Docker)
 pnpm db:init       # Create tables
 pnpm db:seed       # Seed sample data
-pnpm api:start     # Start backend API (SAM Local)
+pnpm api:start     # Start local API (SAM)
 pnpm dev:backend   # Watch-mode backend + local API
 ```
 
@@ -99,17 +102,15 @@ All Lambda handlers use a shared `commonMiddleware()` that bundles:
 - **JSON body parsing** — auto-parses `application/json` request bodies
 - **Header normalization** — case-insensitive header access
 - **CORS** — centralized cross-origin configuration
+- **Metrics** — auto-flushes Powertools Metrics (including cold start tracking)
 - **Error handling** — catches thrown errors and returns structured responses
 
 ```typescript
-// backend/src/handlers/myHandler.ts
 import { commonMiddleware } from "../lib/middleware";
 import { AppError } from "../lib/error";
 
 const baseHandler = async (event, context) => {
-    if (!event.pathParameters?.id) {
-        throw new AppError("Missing id", 400);
-    }
+    if (!event.pathParameters?.id) throw new AppError("Missing id", 400);
     // ... handler logic (no try/catch needed)
 };
 
@@ -122,49 +123,104 @@ Automatically deployed with your stack. Includes:
 - **API Gateway**: Request count, 4xx/5xx errors, latency percentiles (p50, p90, p99)
 - **Lambda**: Invocations, errors, and duration for all functions
 - **DynamoDB**: Consumed read/write capacity, throttle events
+- **Dead Letter Queue**: Messages visible, messages sent
+- **WAF**: Blocked requests
 
-Find it in the AWS Console under **CloudWatch → Dashboards → `<stage>-ServiceDashboard`**.
+Find it at **CloudWatch → Dashboards → `<stage>-ServiceDashboard`**.
+
+### � CloudWatch Alarms + SNS
+
+Automated alerting for production issues:
+
+| Alarm | Threshold | Description |
+|---|---|---|
+| API 5xx Errors | ≥ 5 in 10 min | Server-side errors detected |
+| API Latency | p99 > 3s for 15 min | High latency spike |
+| Lambda Errors | ≥ 3 per function in 10 min | Individual function failures |
+| DynamoDB Throttle | ≥ 1 event in 10 min | Read throttle events |
+| DLQ Messages | ≥ 1 message | Lambda failures sent to DLQ |
+
+Subscribe to alerts:
+```bash
+aws sns subscribe --topic-arn <AlarmTopicArn from deploy output> --protocol email --notification-endpoint your@email.com
+```
+
+### 💀 Dead Letter Queues (DLQ)
+
+All Lambda functions and EventBridge rules are configured with a shared SQS Dead Letter Queue. Failed invocations are captured for debugging instead of being silently lost. The DLQ retains messages for 14 days.
+
+### 🛡️ WAF (Web Application Firewall)
+
+API Gateway is protected by AWS WAFv2 with:
+- **Rate limiting**: 1,000 requests per 5 minutes per IP
+- **AWS Common Rule Set**: Blocks known malicious inputs (XSS, SQLi, etc.)
+- **Known Bad Inputs**: Blocks requests matching known attack signatures
+
+### 📈 API Gateway Usage Plans
+
+Built-in throttling and quotas:
+- **Rate**: 100 requests/second
+- **Burst**: 200 requests
+- **Daily Quota**: 10,000 requests
+
+### 📏 Powertools Metrics
+
+Custom CloudWatch Metrics via `@aws-lambda-powertools/metrics`:
+- **Cold Start** tracking (automatic via middleware)
+- **Custom business metrics**: `ItemsCreated`, `ValidationErrors`, `EventPublishErrors`
+- Metrics published to the `Hmaas` CloudWatch namespace
+
+```typescript
+import { metrics } from "../lib/observability";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
+
+metrics.addMetric('ItemsCreated', MetricUnit.Count, 1);
+```
 
 ### 🔒 Security (cdk-nag)
 
-[cdk-nag](https://github.com/cdklabs/cdk-nag) runs `AwsSolutionsChecks` during every `cdk synth`. It scans your infrastructure for security and compliance issues. Template-acceptable suppressions are documented inline in `infra-stack.ts`.
+[cdk-nag](https://github.com/cdklabs/cdk-nag) runs `AwsSolutionsChecks` during every `cdk synth`. All suppressions are documented with justifications in `infra-stack.ts`.
 
 ### 🔐 Authentication & Authorization
 
 - **Amazon Cognito** User Pool with email sign-up
 - **Amazon Verified Permissions** (Cedar policies) for fine-grained RBAC
 - **Lambda Token Authorizer** validates JWTs and checks Cedar policies per request
-- Pre-configured `admin` and `user` roles
 
 ### 📡 Event-Driven Messaging
 
-- **Amazon EventBridge** bus (`HmaasEventBus-<stage>`)
-- `ItemCreated` events published on item creation
-- `processEvent` Lambda listens and processes events
-- Extensible: add new rules and listeners easily
+- **Amazon EventBridge** bus with `ItemCreated` events
+- `processEvent` Lambda listener
+- EventBridge rule deadLetterQueue for failed deliveries
 
 ### 🗄️ Database Seeding (Custom Resource)
 
-Reference data is automatically seeded into DynamoDB on stack creation/update via a CloudFormation Custom Resource. Edit the seed data in `backend/src/handlers/seedData.ts`. Bump the `Version` property in `infra-stack.ts` to trigger re-seeding.
+Reference data auto-seeded on stack deploy. Edit seed data in `backend/src/handlers/seedData.ts`.
 
 ### 📝 Runtime Validation (Zod)
 
-Request bodies are validated using [Zod](https://zod.dev/) schemas defined in `backend/src/lib/schemas.ts`. Schemas are also used to generate the OpenAPI spec.
+Request bodies validated using Zod schemas in `backend/src/lib/schemas.ts`.
 
 ### 📖 API Documentation (OpenAPI)
 
-- Schemas registered via `@asteasolutions/zod-to-openapi` in `backend/src/lib/openapi.ts`
-- Generate spec: `pnpm --filter backend gen:docs`
-- View at: `/api-docs` page in the frontend (Swagger UI)
-- CI pipeline auto-generates and deploys the spec
+Generate spec: `pnpm --filter backend gen:docs` — view at `/api-docs` in the frontend.
 
 ### 📚 Storybook
 
-Component development and documentation with Storybook 10:
 ```bash
 pnpm --filter frontend storybook        # Dev server
 pnpm --filter frontend build-storybook  # Static build
 ```
+
+### 🏷️ Resource Tagging
+
+All resources are automatically tagged via CDK:
+
+| Tag | Value |
+|---|---|
+| `Project` | App name (default: `Hmaas`) |
+| `Stage` | Stage name (branch or username) |
+| `ManagedBy` | `CDK` |
 
 ### 🧪 Testing
 
@@ -172,59 +228,37 @@ pnpm --filter frontend build-storybook  # Static build
 |---|---|---|
 | Backend Unit | Vitest | `pnpm --filter backend test` |
 | Infra Snapshot | Jest | `pnpm --filter infra test` |
-| E2E + a11y | Cypress + cypress-axe | `pnpm --filter frontend test:e2e` |
-| All | — | `pnpm test` |
+| E2E + a11y | Cypress | `pnpm --filter frontend test:e2e` |
+| Integration | Node.js | `API_URL=<url> pnpm test:integration` |
+| All Unit | — | `pnpm test` |
 
 ### 🏗️ Code Scaffolding (Plop)
 
-Generate new endpoints and components with consistent patterns:
-
 ```bash
 pnpm generate
-# Select: endpoint → creates handler + test
-# Select: component → creates component + barrel export + Storybook story
+# endpoint → handler + test
+# component → React component + barrel export + Storybook story
 ```
-
-Templates are in `templates/endpoint/` and `templates/component/`.
 
 ### 🪝 Git Hooks
 
 | Hook | Action |
 |---|---|
-| **pre-commit** | Runs `lint-staged` (ESLint --fix on staged `.ts`/`.tsx` files) |
-| **pre-push** | Runs `pnpm test` (all workspace tests must pass) |
+| **pre-commit** | `lint-staged` (ESLint --fix on `.ts`/`.tsx`) |
+| **pre-push** | `pnpm test` (all tests must pass) |
 
-#### Conventional Commits
-Use `pnpm commit` for interactive, conventional commit messages (powered by [Commitizen](https://github.com/commitizen/cz-cli)).
+Use `pnpm commit` for interactive conventional commits.
 
 ### 🚀 CI/CD (GitHub Actions)
 
-The `deploy.yml` workflow runs on pull requests to `main`:
+On PRs to `main`: Install → Test → Lint → E2E → Deploy Infra → Build & Deploy Frontend to S3/CloudFront.
 
-1. **Install** dependencies
-2. **Unit tests** (`pnpm test`)
-3. **Lint** frontend
-4. **E2E tests** (Cypress)
-5. **Deploy infra** (`cdk deploy`)
-6. **Generate API docs** and copy to frontend
-7. **Build & deploy frontend** to S3/CloudFront
-   - `main` → prod bucket
-   - Feature branches → non-prod bucket under `/<branch-name>/`
-
-### 🖥️ Frontend Features
+### 🖥️ Frontend
 
 - **Next.js 16** with App Router and static export
 - **Tailwind CSS** + **shadcn/ui** components
-- **Admin Dashboard** (`/admin`)
-- **Login / Profile** pages
-- **CloudFront** distribution with security headers
-- **Prod / Non-Prod split** — separate S3 buckets and CloudFront distributions
-
-### 📐 Observability (AWS Powertools)
-
-All Lambda handlers include:
-- **Structured JSON logging** via `@aws-lambda-powertools/logger`
-- **Distributed tracing** via `@aws-lambda-powertools/tracer` (X-Ray)
+- **Admin Dashboard**, Login, Profile pages
+- **CloudFront** with prod/non-prod split
 
 ---
 
@@ -234,7 +268,8 @@ All Lambda handlers include:
 |---|---|
 | `pnpm dev` | Start Next.js dev server |
 | `pnpm build` | Build all workspaces |
-| `pnpm test` | Run all tests |
+| `pnpm test` | Run all unit tests |
+| `pnpm test:integration` | Run integration tests against deployed API |
 | `pnpm deploy` | Deploy infrastructure to AWS |
 | `pnpm generate` | Scaffold new endpoint or component |
 | `pnpm commit` | Interactive conventional commit |
@@ -246,13 +281,18 @@ All Lambda handlers include:
 ## Deployment
 
 ```bash
-# Deploy from local machine (creates ephemeral stack named after your username)
-pnpm deploy
-
-# Or via CI — push a PR to main
+pnpm deploy  # Ephemeral stack named after your username
 ```
 
-The CDK app creates three stacks:
+Three CDK stacks:
 - **`AuthStack-<stage>`** — Cognito + Verified Permissions
-- **`InfraStack-<stage>`** — API Gateway, Lambda, DynamoDB, EventBridge, CloudWatch Dashboard
-- **`FrontendStack`** — S3 + CloudFront (shared across stages)
+- **`InfraStack-<stage>`** — API Gateway, Lambda, DynamoDB, EventBridge, WAF, Alarms, Dashboard
+- **`FrontendStack`** — S3 + CloudFront (shared)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+[MIT](LICENSE)

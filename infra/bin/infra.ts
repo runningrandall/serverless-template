@@ -37,6 +37,11 @@ const stageName = getStageName();
 const appName = process.env.APP_NAME || 'Hmaas';
 console.log(`Deploying ${appName} to stage: ${stageName}`);
 
+// Apply cost allocation and resource tags
+cdk.Tags.of(app).add('Project', appName);
+cdk.Tags.of(app).add('Stage', stageName);
+cdk.Tags.of(app).add('ManagedBy', 'CDK');
+
 // Frontend Stack - Persistent (one per account/region ideally, or managed here)
 // We might want to deploy this only once or have it be a singleton.
 // For simplicity, let's name it without stage name so it persists across stages?
@@ -55,4 +60,3 @@ new InfraStack(app, `${appName}InfraStack-${stageName}`, {
   auth: authStack,
   stageName
 });
-

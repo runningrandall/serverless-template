@@ -1,7 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ItemEntity } from "../entities/item";
 import { EventBridgeClient, PutEventsCommand } from "@aws-sdk/client-eventbridge";
-import { logger, tracer } from "../lib/observability";
+import { logger, tracer, metrics } from "../lib/observability";
+import { MetricUnit } from "@aws-lambda-powertools/metrics";
 import { CreateItemSchema } from "../lib/schemas";
 import { randomUUID } from "crypto";
 import { commonMiddleware } from "../lib/middleware";
@@ -27,6 +28,7 @@ const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<A
     if (!parseResult.success) {
         const issues = parseResult.error.issues;
         logger.warn("Validation failed", { issues });
+        metrics.addMetric('ValidationErrors', MetricUnit.Count, 1);
         return {
             statusCode: 400,
             body: JSON.stringify({
@@ -47,6 +49,7 @@ const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<A
 
     const result = await ItemEntity.create(itemToCreate).go();
     logger.info("Item created successfully", { itemId: result.data.itemId });
+    metrics.addMetric('ItemsCreated', MetricUnit.Count, 1);
 
     // Publish Event
     if (EVENT_BUS_NAME) {
@@ -62,7 +65,7 @@ const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<A
             logger.info("Published ItemCreated event");
         } catch (err) {
             logger.error("Failed to publish event", { error: err });
-            // Don't fail the request if event publishing fails, but log it
+            metrics.addMetric('EventPublishErrors', MetricUnit.Count, 1);
         }
     }
 
@@ -73,3 +76,4 @@ const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<A
 };
 
 export const handler = commonMiddleware(baseHandler);
+

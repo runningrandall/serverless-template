@@ -8,6 +8,11 @@ import * as path from 'path';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { AuthStack } from './auth-stack';
@@ -22,7 +27,7 @@ export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: InfraStackProps) {
     super(scope, id, props);
 
-    // 1. DynamoDB Table
+    // ─── 1. DynamoDB Table ───
     const table = new dynamodb.Table(this, 'TemplateTable', {
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
@@ -49,12 +54,43 @@ export class InfraStack extends cdk.Stack {
     new cdk.CustomResource(this, 'SeedDataResource', {
       serviceToken: seedLambda.functionArn,
       properties: {
-        // Change this value to force re-seeding on next deploy
         Version: '1',
       },
     });
 
-    // 2. API Gateway
+    // ─── 2. SNS Alarm Topic ───
+    const alarmTopic = new sns.Topic(this, 'AlarmTopic', {
+      topicName: `${props.stageName}-AlarmTopic`,
+      displayName: `${props.stageName} Service Alarms`,
+    });
+
+    // Output for subscribing email
+    new cdk.CfnOutput(this, 'AlarmTopicArn', {
+      value: alarmTopic.topicArn,
+      description: 'Subscribe to this topic for alarm notifications: aws sns subscribe --topic-arn <ARN> --protocol email --notification-endpoint <email>',
+    });
+
+    // ─── 3. Dead Letter Queues ───
+    const lambdaDLQ = new sqs.Queue(this, 'LambdaDLQ', {
+      queueName: `${props.stageName}-LambdaDLQ`,
+      retentionPeriod: cdk.Duration.days(14),
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+    });
+
+    // DLQ alarm — alert if messages arrive in the DLQ
+    const dlqAlarm = new cloudwatch.Alarm(this, 'DLQMessagesAlarm', {
+      metric: lambdaDLQ.metricApproximateNumberOfMessagesVisible({
+        period: cdk.Duration.minutes(5),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'Messages in Lambda DLQ — indicates Lambda failures',
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    dlqAlarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+
+    // ─── 4. API Gateway ───
     const api = new apigateway.RestApi(this, 'TemplateApi', {
       restApiName: `Template Service ${props.stageName}`,
       description: 'This service serves the template app.',
@@ -63,11 +99,81 @@ export class InfraStack extends cdk.Stack {
         allowMethods: apigateway.Cors.ALL_METHODS,
       },
       deployOptions: {
-        stageName: props.stageName, // Use the stage name for the API Gateway stage too
+        stageName: props.stageName,
       },
     });
 
-    // 3. Lambda Functions
+    // ─── 5. WAF Web ACL ───
+    const webAcl = new wafv2.CfnWebACL(this, 'ApiWaf', {
+      defaultAction: { allow: {} },
+      scope: 'REGIONAL',
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: `${props.stageName}-ApiWaf`,
+        sampledRequestsEnabled: true,
+      },
+      rules: [
+        // Rate limiting: 1000 requests per 5 minutes per IP
+        {
+          name: 'RateLimitRule',
+          priority: 1,
+          action: { block: {} },
+          statement: {
+            rateBasedStatement: {
+              limit: 1000,
+              aggregateKeyType: 'IP',
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'RateLimitRule',
+            sampledRequestsEnabled: true,
+          },
+        },
+        // AWS Managed Common Rule Set (blocks known bad inputs)
+        {
+          name: 'AWSManagedCommonRuleSet',
+          priority: 2,
+          overrideAction: { none: {} },
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: 'AWS',
+              name: 'AWSManagedRulesCommonRuleSet',
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'AWSManagedCommonRuleSet',
+            sampledRequestsEnabled: true,
+          },
+        },
+        // AWS Managed Known Bad Inputs
+        {
+          name: 'AWSManagedKnownBadInputs',
+          priority: 3,
+          overrideAction: { none: {} },
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: 'AWS',
+              name: 'AWSManagedRulesKnownBadInputsRuleSet',
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'AWSManagedKnownBadInputs',
+            sampledRequestsEnabled: true,
+          },
+        },
+      ],
+    });
+
+    // Associate WAF with API Gateway
+    new wafv2.CfnWebACLAssociation(this, 'ApiWafAssociation', {
+      resourceArn: api.deploymentStage.stageArn,
+      webAclArn: webAcl.attrArn,
+    });
+
+    // ─── 6. Lambda Functions ───
     const backendPath = path.join(__dirname, '../../backend/src/handlers');
 
     const commonProps = {
@@ -79,9 +185,10 @@ export class InfraStack extends cdk.Stack {
       bundling: {
         minify: true,
         sourceMap: true,
-        externalModules: ['aws-sdk'], // aws-sdk v3 is included in runtime but good to be explicit for others
+        externalModules: ['aws-sdk'],
       },
       tracing: lambda.Tracing.ACTIVE,
+      deadLetterQueue: lambdaDLQ,
     };
 
     const createItemLambda = new nodejs.NodejsFunction(this, 'createItemLambda', {
@@ -104,13 +211,13 @@ export class InfraStack extends cdk.Stack {
       ...commonProps,
     });
 
-    // 4. Permissions
+    // 7. Permissions
     table.grantWriteData(createItemLambda);
     table.grantReadData(getItemLambda);
     table.grantReadData(listItemsLambda);
     table.grantWriteData(deleteItemLambda);
 
-    // 7. Authorizer
+    // ─── 8. Authorizer ───
     const authLambda = new nodejs.NodejsFunction(this, 'authorizerLambda', {
       entry: path.join(__dirname, '../../backend/src/auth/authorizer.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -126,7 +233,6 @@ export class InfraStack extends cdk.Stack {
       },
     });
 
-    // Grant Authorizer permission to call IsAuthorized
     authLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['verifiedpermissions:IsAuthorized'],
       resources: [`arn:aws:verifiedpermissions:${this.region}:${this.account}:policy-store/${props.auth.policyStoreId}`],
@@ -134,10 +240,10 @@ export class InfraStack extends cdk.Stack {
 
     const authorizer = new apigateway.TokenAuthorizer(this, 'APIGatewayAuthorizer', {
       handler: authLambda,
-      resultsCacheTtl: cdk.Duration.seconds(0), // Disable cache for testing
+      resultsCacheTtl: cdk.Duration.seconds(0),
     });
 
-    // 8. EventBridge Setup
+    // ─── 9. EventBridge ───
     const eventBus = new events.EventBus(this, 'HmaasEventBus', {
       eventBusName: `HmaasEventBus-${props.stageName}`,
     });
@@ -147,25 +253,23 @@ export class InfraStack extends cdk.Stack {
       ...commonProps,
     });
 
-    // Rule: Trigger on 'ItemCreated' from 'hmaas.api'
     new events.Rule(this, 'ItemCreatedRule', {
       eventBus: eventBus,
       eventPattern: {
         source: ['hmaas.api'],
         detailType: ['ItemCreated'],
       },
-      targets: [new targets.LambdaFunction(processEventLambda)],
+      targets: [new targets.LambdaFunction(processEventLambda, {
+        deadLetterQueue: lambdaDLQ,
+      })],
     });
 
-    // Grant Publish permissions to API Lambdas
     eventBus.grantPutEventsTo(createItemLambda);
     eventBus.grantPutEventsTo(deleteItemLambda);
-
-    // Add EVENT_BUS_NAME to Lambda environment
     createItemLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
     deleteItemLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
 
-    // 5. API Gateway Integrations
+    // ─── 10. API Gateway Routes ───
     const items = api.root.addResource('items');
     items.addMethod('GET', new apigateway.LambdaIntegration(listItemsLambda), { authorizer });
     items.addMethod('POST', new apigateway.LambdaIntegration(createItemLambda), { authorizer });
@@ -174,14 +278,76 @@ export class InfraStack extends cdk.Stack {
     item.addMethod('GET', new apigateway.LambdaIntegration(getItemLambda), { authorizer });
     item.addMethod('DELETE', new apigateway.LambdaIntegration(deleteItemLambda), { authorizer });
 
+    // ─── 11. API Gateway Usage Plan & API Key ───
+    const usagePlan = api.addUsagePlan('UsagePlan', {
+      name: `${props.stageName}-UsagePlan`,
+      description: 'Rate limiting usage plan',
+      throttle: {
+        rateLimit: 100,   // requests per second
+        burstLimit: 200,  // burst capacity
+      },
+      quota: {
+        limit: 10000,        // requests per day
+        period: apigateway.Period.DAY,
+      },
+    });
+    usagePlan.addApiStage({ stage: api.deploymentStage });
+
     // Output API URL
     new cdk.CfnOutput(this, 'ApiUrl', {
       value: api.url,
     });
 
-    // ─── CloudWatch Dashboard ───
+    // ─── 12. CloudWatch Alarms ───
     const allLambdas = [createItemLambda, getItemLambda, listItemsLambda, deleteItemLambda, processEventLambda, authLambda];
 
+    // API Gateway 5xx error alarm
+    const api5xxAlarm = new cloudwatch.Alarm(this, 'Api5xxAlarm', {
+      metric: api.metricServerError({ period: cdk.Duration.minutes(5) }),
+      threshold: 5,
+      evaluationPeriods: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'API Gateway 5xx error rate is elevated',
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    api5xxAlarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+
+    // API Gateway high latency alarm (p99 > 3s)
+    const apiLatencyAlarm = new cloudwatch.Alarm(this, 'ApiLatencyAlarm', {
+      metric: api.metricLatency({ statistic: 'p99', period: cdk.Duration.minutes(5) }),
+      threshold: 3000,
+      evaluationPeriods: 3,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'API Gateway p99 latency > 3 seconds',
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    apiLatencyAlarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+
+    // Lambda error alarm (aggregated across all functions)
+    for (const fn of allLambdas) {
+      const alarm = new cloudwatch.Alarm(this, `${fn.node.id}ErrorAlarm`, {
+        metric: fn.metricErrors({ period: cdk.Duration.minutes(5) }),
+        threshold: 3,
+        evaluationPeriods: 2,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: `Lambda ${fn.node.id} error rate is elevated`,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      });
+      alarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+    }
+
+    // DynamoDB throttle alarm
+    const dynamoThrottleAlarm = new cloudwatch.Alarm(this, 'DynamoThrottleAlarm', {
+      metric: table.metric('ReadThrottleEvents', { period: cdk.Duration.minutes(5) }),
+      threshold: 1,
+      evaluationPeriods: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'DynamoDB read throttle events detected',
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    dynamoThrottleAlarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+
+    // ─── 13. CloudWatch Dashboard ───
     const dashboard = new cloudwatch.Dashboard(this, 'ServiceDashboard', {
       dashboardName: `${props.stageName}-ServiceDashboard`,
     });
@@ -251,7 +417,35 @@ export class InfraStack extends cdk.Stack {
       }),
     );
 
-    // ─── cdk-nag suppressions for template-level acceptable patterns ───
+    // DLQ widget
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Dead Letter Queue - Messages',
+        left: [
+          lambdaDLQ.metricApproximateNumberOfMessagesVisible({ period: cdk.Duration.minutes(5) }),
+          lambdaDLQ.metricNumberOfMessagesSent({ period: cdk.Duration.minutes(5) }),
+        ],
+        width: 12,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'WAF - Blocked Requests',
+        left: [
+          new cloudwatch.Metric({
+            namespace: 'AWS/WAFV2',
+            metricName: 'BlockedRequests',
+            dimensionsMap: {
+              WebACL: webAcl.attrArn.split('/').pop()!,
+              Rule: 'ALL',
+              Region: this.region,
+            },
+            period: cdk.Duration.minutes(5),
+          }),
+        ],
+        width: 12,
+      }),
+    );
+
+    // ─── 14. cdk-nag suppressions ───
     NagSuppressions.addStackSuppressions(this, [
       { id: 'AwsSolutions-APIG1', reason: 'Access logging not required for dev/template stage' },
       { id: 'AwsSolutions-APIG2', reason: 'Request validation handled by Middy middleware at handler level' },
@@ -262,8 +456,10 @@ export class InfraStack extends cdk.Stack {
       { id: 'AwsSolutions-IAM4', reason: 'Managed policies acceptable for Lambda execution roles in template' },
       { id: 'AwsSolutions-IAM5', reason: 'Wildcard permissions acceptable for DynamoDB index access in template' },
       { id: 'AwsSolutions-L1', reason: 'Using Node.js 22.x which is current' },
-      { id: 'AwsSolutions-SQS3', reason: 'No SQS queues used - EventBridge targets Lambda directly' },
+      { id: 'AwsSolutions-SQS3', reason: 'Lambda DLQ is the terminal queue — no further DLQ needed' },
+      { id: 'AwsSolutions-SNS2', reason: 'SNS topic encryption not required for alarm notifications in template' },
+      { id: 'AwsSolutions-SNS3', reason: 'SNS topic does not need to enforce SSL for alarm notifications' },
+      { id: 'AwsSolutions-APIG3', reason: 'WAF is associated via CfnWebACLAssociation at regional scope' },
     ], true);
   }
 }
-
