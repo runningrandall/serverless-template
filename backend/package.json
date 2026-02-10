@@ -4,8 +4,9 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "dotenv -e ../.env -- vitest run",
-    "test:coverage": "dotenv -e ../.env -- vitest run --coverage",
+    "test": "dotenv -e ../.env -- vitest run --exclude 'test/integration/**'",
+    "test:coverage": "dotenv -e ../.env -- vitest run --coverage --exclude 'test/integration/**'",
+    "test:integration": "dotenv -e ../.env -- vitest run --config vitest.integration.config.ts",
     "gen:docs": "ts-node scripts/generate-openapi.ts"
   },
   "keywords": [],

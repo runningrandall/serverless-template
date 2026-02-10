@@ -8,7 +8,8 @@ We employ a multi-layered testing strategy to ensure reliability from unit to pr
 | **Unit (Frontend)** | Components, Hooks | Vitest | `frontend/test` | `pnpm --filter frontend test` |
 | **Infrastructure** | CDK Stack Snapshots | Jest | `infra/test` | `pnpm --filter infra test` |
 | **E2E** | Full Browser Flow | Cypress | `frontend/cypress` | `pnpm --filter frontend test:e2e` |
-| **Integration** | Live API Smoke Tests | Node.js | `scripts/` | `pnpm test:integration` |
+| **Integration (Local)** | Service + DynamoDB | Vitest | `backend/test/integration` | `pnpm --filter backend test:integration` |
+| **Integration (Deployed)** | Live API Smoke Tests | Node.js | `scripts/` | `pnpm test:integration` |
 
 ## 1. Unit Testing
 
@@ -34,8 +35,21 @@ Tests the running application in a real browser.
 - **Interactive**: `pnpm --filter frontend test:e2e:open`.
 
 ## 4. Integration Testing
+
+### Local DynamoDB (Service Layer)
+Tests `ItemService` + `DynamoItemRepository` against DynamoDB Local.
+- **Location**: `backend/test/integration/`
+- **Requires**: DynamoDB Local running (`pnpm db:start`)
+- **Run**:
+  ```bash
+  pnpm db:start
+  pnpm --filter backend test:integration
+  ```
+- **Behavior**: Creates an isolated `integration-test-table`, runs CRUD tests, tears down.
+
+### Deployed API (Smoke Tests)
 Runs against the **deployed** environment.
-- **Script**: `scripts/integration-test.js`.
+- **Script**: `scripts/integration-test.js`
 - **Usage**:
   ```bash
   export NEXT_PUBLIC_API_URL=https://your-api-url.com
