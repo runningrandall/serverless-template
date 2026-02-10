@@ -1,0 +1,85 @@
+name: Teardown
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  teardown:
+    name: Teardown Environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Destroy Infrastructure
+        run: |
+          # Calculate Stage Name exactly as infra.ts does
+          BRANCH_NAME="${{ github.head_ref }}"
+          STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
+          
+          # Stack Names (must match infra.ts logic)
+          APP_NAME="Hmaas"
+          INFRA_STACK_NAME="${APP_NAME}InfraStack-${STAGE_NAME}"
+          AUTH_STACK_NAME="${APP_NAME}AuthStack-${STAGE_NAME}"
+          FRONTEND_STACK_NAME="${APP_NAME}FrontendStack"
+          
+          echo "Teardown for Stage: $STAGE_NAME"
+          echo "Stacks to destroy: $INFRA_STACK_NAME, $AUTH_STACK_NAME"
+          
+          # Helper to check if stack exists
+          stack_exists() {
+            aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1
+          }
+          
+          # Destroy stacks if they exist
+          if stack_exists "$INFRA_STACK_NAME" ; then
+             echo "Disabling termination protection for $INFRA_STACK_NAME..."
+             aws cloudformation update-termination-protection --stack-name "$INFRA_STACK_NAME" --no-enable-termination-protection
+             pnpm --filter infra exec cdk destroy "$INFRA_STACK_NAME" --force --require-approval never
+          fi
+
+          if stack_exists "$AUTH_STACK_NAME" ; then
+             echo "Disabling termination protection for $AUTH_STACK_NAME..."
+             aws cloudformation update-termination-protection --stack-name "$AUTH_STACK_NAME" --no-enable-termination-protection
+             pnpm --filter infra exec cdk destroy "$AUTH_STACK_NAME" --force --require-approval never
+          fi
+
+          # Cleanup S3 (Non-Prod Folder)
+          if stack_exists "$FRONTEND_STACK_NAME"; then
+             BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='NonProdBucketName'].OutputValue" --output text)
+             
+             if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
+                S3_DEST="s3://${BUCKET_NAME}/${STAGE_NAME}"
+                echo "Cleaning up S3 path: $S3_DEST"
+                aws s3 rm "$S3_DEST" --recursive
+             else
+                echo "NonProdBucketName output not found on FrontendStack."
+             fi
+          else
+             echo "FrontendStack not found, skipping S3 cleanup."
+          fi
