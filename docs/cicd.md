@@ -17,7 +17,7 @@ Triggers on: **Push to `main`** or **Pull Request**.
 
 **Ephemeral Environments:**
 - Every Pull Request gets a unique, isolated environment.
-- Stack Name: `HmaasInfraStack-<stage_name>` (where stage is sanitized branch name).
+- Stack Name: `TestInfraStack-<stage_name>` (where stage is sanitized branch name).
 - URL is posted back to the PR.
 
 ### 2. `teardown.yml` (Cleanup)

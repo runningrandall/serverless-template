@@ -42,11 +42,11 @@ const handler = async (event, context) => {
             try {
                 await eventBridge.send(new client_eventbridge_1.PutEventsCommand({
                     Entries: [{
-                            Source: "hmaas.api",
-                            DetailType: "ItemCreated",
-                            Detail: JSON.stringify(result.data),
-                            EventBusName: EVENT_BUS_NAME,
-                        }]
+                        Source: "test.api",
+                        DetailType: "ItemCreated",
+                        Detail: JSON.stringify(result.data),
+                        EventBusName: EVENT_BUS_NAME,
+                    }]
                 }));
                 observability_1.logger.info("Published ItemCreated event");
             }

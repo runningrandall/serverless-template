@@ -3,7 +3,7 @@
 We use **AWS Lambda Powertools for TypeScript** and **Amazon CloudWatch** for full-stack observability.
 
 ## 1. Metrics (`@aws-lambda-powertools/metrics`)
-Custom metrics are published to CloudWatch under the namespace `Hmaas`.
+Custom metrics are published to CloudWatch under the namespace `Test`.
 - **Standard**: ColdStart, Lambda Error Rate.
 - **Custom**: `ItemsCreated`, `ValidationErrors`, `EventPublishErrors`.
 

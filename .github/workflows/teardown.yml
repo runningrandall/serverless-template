@@ -43,7 +43,7 @@ jobs:
           STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
           
           # Stack Names (must match infra.ts logic)
-          APP_NAME="Hmaas"
+          APP_NAME="Test"
           INFRA_STACK_NAME="${APP_NAME}InfraStack-${STAGE_NAME}"
           AUTH_STACK_NAME="${APP_NAME}AuthStack-${STAGE_NAME}"
           FRONTEND_STACK_NAME="${APP_NAME}FrontendStack"
