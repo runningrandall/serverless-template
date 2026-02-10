@@ -1,23 +1,17 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ItemEntity } from "../entities/item";
 import { logger } from "../lib/observability";
+import { commonMiddleware } from "../lib/middleware";
 
-export const handler: APIGatewayProxyHandler = async (event, context) => {
+const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<APIGatewayProxyResult> => {
     logger.addContext(context);
-    try {
-        const result = await ItemEntity.scan.go();
 
-        return {
-            statusCode: 200,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify(result.data),
-        };
-    } catch (error: any) {
-        logger.error("Error listing items", { error });
-        return {
-            statusCode: 500,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ error: error.message }),
-        };
-    }
+    const result = await ItemEntity.scan.go();
+
+    return {
+        statusCode: 200,
+        body: JSON.stringify(result.data),
+    };
 };
+
+export const handler = commonMiddleware(baseHandler);

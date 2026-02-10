@@ -1,30 +1,24 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ItemEntity } from "../entities/item";
 import { logger } from "../lib/observability";
+import { commonMiddleware } from "../lib/middleware";
+import { AppError } from "../lib/error";
 
-export const handler: APIGatewayProxyHandler = async (event, context) => {
+const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<APIGatewayProxyResult> => {
     logger.addContext(context);
-    try {
-        const itemId = event.pathParameters?.itemId;
-        if (!itemId) {
-            logger.warn("Missing itemId in path parameters");
-            return { statusCode: 400, body: JSON.stringify({ error: "Missing itemId" }) };
-        }
 
-        await ItemEntity.delete({ itemId }).go();
-        logger.info("Item deleted", { itemId });
-
-        return {
-            statusCode: 200,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ message: "Item deleted" }),
-        };
-    } catch (error: any) {
-        logger.error("Error deleting item", { error });
-        return {
-            statusCode: 500,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ error: error.message }),
-        };
+    const itemId = event.pathParameters?.itemId;
+    if (!itemId) {
+        throw new AppError("Missing itemId", 400);
     }
+
+    await ItemEntity.delete({ itemId }).go();
+    logger.info("Item deleted", { itemId });
+
+    return {
+        statusCode: 200,
+        body: JSON.stringify({ message: "Item deleted" }),
+    };
 };
+
+export const handler = commonMiddleware(baseHandler);
