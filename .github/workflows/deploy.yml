@@ -45,8 +45,7 @@ jobs:
       - name: Deploy Infrastructure
         run: pnpm --filter infra run deploy --require-approval never
 
-      - name: Get Bucket Name
-        id: bucket
+      - name: Build and Deploy Frontend
         run: |
           # Determine STAGE_NAME (Logic must match bin/infra.ts)
           if [ -n "${{ github.head_ref }}" ]; then
@@ -56,44 +55,47 @@ jobs:
           fi
           # Sanitize: clean alphanumeric
           STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
-          STACK_NAME="HmaasInfraStack-$STAGE_NAME"
+          
+          # Determine API Stack Name
+          INFRA_STACK_NAME="HmaasInfraStack-$STAGE_NAME"
+          FRONTEND_STACK_NAME="HmaasFrontendStack"
           
           echo "Determined Stage: $STAGE_NAME"
-          echo "Looking for Stack: $STACK_NAME"
+          echo "Infra Stack: $INFRA_STACK_NAME"
+          echo "Frontend Stack: $FRONTEND_STACK_NAME"
 
-          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='WebsiteBucketName'].OutputValue" --output text)
-          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
-          echo "Found bucket: $BUCKET_NAME"
-
-      - name: Build Frontend
-        run: |
-          if [ -n "${{ github.head_ref }}" ]; then
-            BRANCH_NAME="${{ github.head_ref }}"
-          else
-            BRANCH_NAME="${{ github.ref_name }}"
-          fi
-          STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
-           
-          # Set BasePath to /stage-name (optional, if we want multi-site hosting on same domain)
-          # For S3 website hosting, each bucket is a domain, so BasePath might not be needed unless behind a single CloudFront with paths.
-          # Assuming separate distributions/buckets per stack, no base path needed?
-          # User didn't ask for path-based routing, but "ephemeral envs".
-          # We'll use the Stage Name as base path just in case, or leave it root if it's a dedicated bucket.
-          # Since existing 'deploy.yml' set it to branch name, we keep it but sanitized?
-          # Actually, separate buckets means separate domains (if using S3 website endpoints) or separate CF distributions.
-          # If separate CF distributions, we can deploy to root '/'.
-          
-          echo "Building for stage: $STAGE_NAME"
-          # export NEXT_PUBLIC_BASE_PATH="/$STAGE_NAME" # Commenting out as we have dedicated bucket/distro
-          
-          # We might need API URL
-          STACK_NAME="HmaasInfraStack-$STAGE_NAME"
-          API_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          # Get API URL from Infra Stack
+          API_URL=$(aws cloudformation describe-stacks --stack-name $INFRA_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
           export NEXT_PUBLIC_API_URL=$API_URL
+          echo "Found API_URL: $API_URL"
+
+          # Determine Bucket and Base Path
+          if [ "$BRANCH_NAME" == "main" ]; then
+             echo "Deploying to PROD"
+             BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ProdBucketName'].OutputValue" --output text)
+             DISTRO_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ProdDistributionId'].OutputValue" --output text)
+             export NEXT_PUBLIC_BASE_PATH=""
+             S3_DEST="s3://${BUCKET_NAME}"
+          else
+             echo "Deploying to NON-PROD"
+             BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='NonProdBucketName'].OutputValue" --output text)
+             DISTRO_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='NonProdDistributionId'].OutputValue" --output text)
+             # Use original branch name for path, but maybe sanitized? 
+             # Next.js basePath requires leading slash.
+             # We should probably use original branch name if safe, or the sanitized one?
+             # Let's use the sanitized STAGE_NAME to match the ephemeral stack ID concept.
+             export NEXT_PUBLIC_BASE_PATH="/${STAGE_NAME}" 
+             S3_DEST="s3://${BUCKET_NAME}/${STAGE_NAME}"
+          fi
           
+          echo "Building with BASE_PATH: $NEXT_PUBLIC_BASE_PATH"
           pnpm --filter frontend run build
 
-      - name: Deploy to S3
-        run: |
-          aws s3 sync frontend/out "s3://${{ env.BUCKET_NAME }}" --delete
-          echo "Deployed to: s3://${{ env.BUCKET_NAME }}"
+          echo "Deploying to: $S3_DEST"
+          aws s3 sync frontend/out "$S3_DEST" --delete
+          
+          # Invalidate CloudFront (optional but recommended)
+          if [ -n "$DISTRO_ID" ]; then
+             echo "Invalidating CloudFront Distribution: $DISTRO_ID"
+             aws cloudfront create-invalidation --distribution-id "$DISTRO_ID" --paths "/*"
+          fi

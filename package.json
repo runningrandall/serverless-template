@@ -25,5 +25,13 @@
         "husky": "^9.1.7",
         "lint-staged": "^16.2.7",
         "typescript": "^5.3.3"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "aws-sdk",
+            "esbuild",
+            "sharp",
+            "unrs-resolver"
+        ]
     }
 }

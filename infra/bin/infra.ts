@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import * as dotenv from 'dotenv';
 import { InfraStack } from '../lib/infra-stack';
 import { AuthStack } from '../lib/auth-stack';
+import { FrontendStack } from '../lib/frontend-stack';
 
 import * as os from 'os';
 import * as path from 'path';
@@ -31,6 +32,14 @@ const getStageName = (): string => {
 const stageName = getStageName();
 const appName = process.env.APP_NAME || 'Hmaas';
 console.log(`Deploying ${appName} to stage: ${stageName}`);
+
+// Frontend Stack - Persistent (one per account/region ideally, or managed here)
+// We might want to deploy this only once or have it be a singleton.
+// For simplicity, let's name it without stage name so it persists across stages?
+// OR we just deploy it every time.
+const frontendStack = new FrontendStack(app, `${appName}FrontendStack`, {
+  env
+});
 
 const authStack = new AuthStack(app, `${appName}AuthStack-${stageName}`, {
   env,
