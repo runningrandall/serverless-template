@@ -1,9 +1,8 @@
-name: Deploy
+name: Deploy Non-Prod
 
 on:
   pull_request:
-    branches:
-      - "main"
+    branches: [ main ]
 
 permissions:
   id-token: write

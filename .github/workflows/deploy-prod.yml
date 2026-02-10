@@ -1,0 +1,43 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: us-east-1
+
+      - name: Deploy to Production
+        run: pnpm deploy:prod
+        env:
+          TABLE_NAME: ${{ secrets.PROD_TABLE_NAME }}
+          EVENT_BUS_NAME: ${{ secrets.PROD_EVENT_BUS_NAME }}

@@ -37,10 +37,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Create Release
-        run: pnpm release
+      - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push changes
-        run: git push --follow-tags origin main
+        run: npx semantic-release
