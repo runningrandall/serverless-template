@@ -53,7 +53,7 @@ export class AuthStack extends cdk.Stack {
             },
             schema: {
                 cedarJson: JSON.stringify({
-                    "Hmaas": {
+                    "Test": {
                         "entityTypes": {
                             "User": {
                                 "shape": {

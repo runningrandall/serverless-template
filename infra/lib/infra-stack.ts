@@ -270,8 +270,8 @@ export class InfraStack extends cdk.Stack {
     });
 
     // ─── 9. EventBridge ───
-    const eventBus = new events.EventBus(this, 'HmaasEventBus', {
-      eventBusName: `HmaasEventBus-${props.stageName}`,
+    const eventBus = new events.EventBus(this, 'TestEventBus', {
+      eventBusName: `TestEventBus-${props.stageName}`,
     });
 
     const processEventLambda = new nodejs.NodejsFunction(this, 'processEventLambda', {
@@ -282,7 +282,7 @@ export class InfraStack extends cdk.Stack {
     new events.Rule(this, 'ItemCreatedRule', {
       eventBus: eventBus,
       eventPattern: {
-        source: ['hmaas.api'],
+        source: ['test.api'],
         detailType: ['ItemCreated'],
       },
       targets: [new targets.LambdaFunction(processEventLambda, {

@@ -46,15 +46,15 @@ const handler = async (event) => {
         const command = new client_verifiedpermissions_1.IsAuthorizedCommand({
             policyStoreId,
             principal: {
-                entityType: "Hmaas::User",
+                entityType: "Test::User",
                 entityId: userId,
             },
             action: {
-                actionType: "Hmaas::Action",
+                actionType: "Test::Action",
                 actionId: action,
             },
             resource: {
-                entityType: "Hmaas::Resource",
+                entityType: "Test::Resource",
                 entityId: "default",
             },
             // Pass groups as context or attributes?
@@ -67,7 +67,7 @@ const handler = async (event) => {
             entities: {
                 entityList: [
                     {
-                        identifier: { entityType: "Hmaas::User", entityId: userId },
+                        identifier: { entityType: "Test::User", entityId: userId },
                         attributes: {
                             groups: {
                                 set: groups.map(g => ({ string: g }))
@@ -94,13 +94,13 @@ function generatePolicy(principalId, effect, resource) {
         policyDocument: {
             Version: '2012-10-17',
             Statement: [{
-                    Action: 'execute-api:Invoke',
-                    Effect: effect,
-                    Resource: resource,
-                }],
+                Action: 'execute-api:Invoke',
+                Effect: effect,
+                Resource: resource,
+            }],
         },
         context: {
-        // Pass info to backend lambda if needed
+            // Pass info to backend lambda if needed
         }
     };
 }

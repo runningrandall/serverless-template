@@ -39,5 +39,5 @@ jobs:
       - name: Deploy to Production
         run: pnpm deploy:prod
         env:
-          TABLE_NAME: ${{ secrets.PROD_TABLE_NAME }}
-          EVENT_BUS_NAME: ${{ secrets.PROD_EVENT_BUS_NAME }}
+          INFRA_STACK_NAME: "TestInfraStack-$STAGE_NAME"
+          FRONTEND_STACK_NAME: "TestFrontendStack"

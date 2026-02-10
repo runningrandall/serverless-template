@@ -34,7 +34,7 @@ const getStageName = (): string => {
 };
 
 const stageName = getStageName();
-const appName = process.env.APP_NAME || 'Hmaas';
+const appName = process.env.APP_NAME || 'Test';
 console.log(`Deploying ${appName} to stage: ${stageName}`);
 
 // Apply cost allocation and resource tags

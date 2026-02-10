@@ -321,8 +321,8 @@ jobs:
           STAGE_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]//g')
           
           # Determine API Stack Name
-          INFRA_STACK_NAME="HmaasInfraStack-$STAGE_NAME"
-          FRONTEND_STACK_NAME="HmaasFrontendStack"
+          INFRA_STACK_NAME="TestInfraStack-$STAGE_NAME"
+          FRONTEND_STACK_NAME="TestFrontendStack"
           
           echo "Determined Stage: $STAGE_NAME"
           echo "Infra Stack: $INFRA_STACK_NAME"

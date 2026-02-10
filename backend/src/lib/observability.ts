@@ -16,5 +16,5 @@ export const tracer = new Tracer({
 
 export const metrics = new Metrics({
     serviceName: SERVICE_NAME,
-    namespace: 'Hmaas',
+    namespace: 'Test',
 });
