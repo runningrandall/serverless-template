@@ -14,8 +14,12 @@ export default function Home() {
       setLoading(true);
       const data = await listItems();
       setItems(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -37,8 +41,30 @@ export default function Home() {
       const created = await createItem(newItemName, 'Created via Web UI');
       setItems([...items, created]);
       setNewItemName('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (itemId: string) => {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+
+    try {
+      setLoading(true);
+      await deleteItem(itemId);
+      setItems(items.filter((item) => item.itemId !== itemId));
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }
