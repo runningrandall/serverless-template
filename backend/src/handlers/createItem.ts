@@ -1,18 +1,19 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { ItemEntity } from "../entities/item";
-import { EventBridgeClient, PutEventsCommand } from "@aws-sdk/client-eventbridge";
-import { logger, tracer, metrics } from "../lib/observability";
+import { logger, metrics } from "../lib/observability";
 import { MetricUnit } from "@aws-lambda-powertools/metrics";
 import { CreateItemSchema } from "../lib/schemas";
-import { randomUUID } from "crypto";
 import { commonMiddleware } from "../lib/middleware";
 import { AppError } from "../lib/error";
+import { DynamoItemRepository } from "../adapters/dynamo-item-repository";
+import { EventBridgePublisher } from "../adapters/event-bridge-publisher";
+import { ItemService } from "../application/item-service";
 
-const eventBridge = tracer.captureAWSv3Client(new EventBridgeClient({}));
+// Composition Root (Dependency Injection)
+const repository = new DynamoItemRepository();
+const publisher = new EventBridgePublisher(process.env.EVENT_BUS_NAME || "");
+const service = new ItemService(repository, publisher);
 
 const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<APIGatewayProxyResult> => {
-    const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME;
-
     // Add context to logger
     logger.addContext(context);
 
@@ -38,40 +39,11 @@ const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<A
         };
     }
 
-    const validatedBody = parseResult.data;
-    const itemId = randomUUID();
-    logger.info("Creating item", { itemName: validatedBody.name, itemId });
-
-    const itemToCreate = {
-        ...validatedBody,
-        itemId,
-    };
-
-    const result = await ItemEntity.create(itemToCreate).go();
-    logger.info("Item created successfully", { itemId: result.data.itemId });
-    metrics.addMetric('ItemsCreated', MetricUnit.Count, 1);
-
-    // Publish Event
-    if (EVENT_BUS_NAME) {
-        try {
-            await eventBridge.send(new PutEventsCommand({
-                Entries: [{
-                    Source: "hmaas.api",
-                    DetailType: "ItemCreated",
-                    Detail: JSON.stringify(result.data),
-                    EventBusName: EVENT_BUS_NAME,
-                }]
-            }));
-            logger.info("Published ItemCreated event");
-        } catch (err) {
-            logger.error("Failed to publish event", { error: err });
-            metrics.addMetric('EventPublishErrors', MetricUnit.Count, 1);
-        }
-    }
+    const result = await service.createItem(parseResult.data);
 
     return {
         statusCode: 201,
-        body: JSON.stringify(result.data),
+        body: JSON.stringify(result),
     };
 };
 
