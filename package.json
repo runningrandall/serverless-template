@@ -24,6 +24,8 @@
     },
     "devDependencies": {
         "@aws-sdk/client-dynamodb": "^3.985.0",
+        "@commitlint/cli": "^20.4.1",
+        "@commitlint/config-conventional": "^20.4.1",
         "commitizen": "^4.3.1",
         "concurrently": "^9.2.1",
         "cz-conventional-changelog": "^3.3.0",
