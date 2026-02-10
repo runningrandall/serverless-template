@@ -1,4 +1,4 @@
-import { ItemRepository, Item } from "../domain/item";
+import { ItemRepository, Item, PaginationOptions, PaginatedResult } from "../domain/item";
 import { DBService } from "../entities/service";
 import { z } from "zod";
 import { logger } from "../lib/observability";
@@ -28,6 +28,8 @@ function parseItem(data: unknown): Item {
     return result.data as Item;
 }
 
+const DEFAULT_PAGE_SIZE = 20;
+
 export class DynamoItemRepository implements ItemRepository {
     async create(item: Item): Promise<Item> {
         const result = await DBService.entities.item.create(item).go();
@@ -40,9 +42,18 @@ export class DynamoItemRepository implements ItemRepository {
         return parseItem(result.data);
     }
 
-    async list(): Promise<Item[]> {
-        const result = await DBService.entities.item.scan.go();
-        return result.data.map(parseItem);
+    async list(options?: PaginationOptions): Promise<PaginatedResult<Item>> {
+        const limit = options?.limit || DEFAULT_PAGE_SIZE;
+
+        const result = await DBService.entities.item.scan.go({
+            limit,
+            ...(options?.cursor && { cursor: options.cursor }),
+        });
+
+        return {
+            items: result.data.map(parseItem),
+            cursor: result.cursor ?? null,
+        };
     }
 
     async delete(itemId: string): Promise<void> {

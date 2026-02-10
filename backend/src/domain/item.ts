@@ -10,10 +10,20 @@ export interface CreateItemRequest {
     description?: string;
 }
 
+export interface PaginationOptions {
+    limit?: number;
+    cursor?: string;
+}
+
+export interface PaginatedResult<T> {
+    items: T[];
+    cursor?: string | null;
+}
+
 export interface ItemRepository {
     create(item: Item): Promise<Item>;
     get(itemId: string): Promise<Item | null>;
-    list(): Promise<Item[]>;
+    list(options?: PaginationOptions): Promise<PaginatedResult<Item>>;
     delete(itemId: string): Promise<void>;
 }
 

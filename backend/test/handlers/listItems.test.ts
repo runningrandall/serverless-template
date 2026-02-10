@@ -37,31 +37,55 @@ describe('listItems handler', () => {
         mockListItems = mockServiceInstance.listItems;
     });
 
-    it('should list items successfully', async () => {
-        const mockItems = [
-            { itemId: '1', name: 'Item 1', createdAt: '2023-01-01' },
-            { itemId: '2', name: 'Item 2', createdAt: '2023-01-02' },
-        ];
-        mockListItems.mockResolvedValue(mockItems);
+    it('should list items successfully with pagination', async () => {
+        const mockResult = {
+            items: [
+                { itemId: '1', name: 'Item 1', createdAt: '2023-01-01' },
+                { itemId: '2', name: 'Item 2', createdAt: '2023-01-02' },
+            ],
+            cursor: null,
+        };
+        mockListItems.mockResolvedValue(mockResult);
 
         const event = makeEvent();
         const result = await handler(event, {} as any, {} as any);
 
         expect(result).toMatchObject({
             statusCode: 200,
-            body: JSON.stringify(mockItems),
+            body: JSON.stringify(mockResult),
         });
+        expect(mockListItems).toHaveBeenCalledWith({ limit: undefined, cursor: undefined });
     });
 
-    it('should return empty array when no items exist', async () => {
-        mockListItems.mockResolvedValue([]);
+    it('should pass limit and cursor from query string', async () => {
+        const mockResult = {
+            items: [{ itemId: '1', name: 'Item 1', createdAt: '2023-01-01' }],
+            cursor: 'next-page-cursor',
+        };
+        mockListItems.mockResolvedValue(mockResult);
+
+        const event = makeEvent({
+            queryStringParameters: { limit: '5', cursor: 'some-cursor' },
+        });
+        const result = await handler(event, {} as any, {} as any);
+
+        expect(result).toMatchObject({
+            statusCode: 200,
+            body: JSON.stringify(mockResult),
+        });
+        expect(mockListItems).toHaveBeenCalledWith({ limit: 5, cursor: 'some-cursor' });
+    });
+
+    it('should return empty items with null cursor when no items exist', async () => {
+        const mockResult = { items: [], cursor: null };
+        mockListItems.mockResolvedValue(mockResult);
 
         const event = makeEvent();
         const result = await handler(event, {} as any, {} as any);
 
         expect(result).toMatchObject({
             statusCode: 200,
-            body: JSON.stringify([]),
+            body: JSON.stringify({ items: [], cursor: null }),
         });
     });
 
@@ -74,4 +98,3 @@ describe('listItems handler', () => {
         expect(result.statusCode).toBe(500);
     });
 });
-

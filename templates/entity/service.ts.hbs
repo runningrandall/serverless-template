@@ -1,6 +1,6 @@
 import { {{pascalCase name}}, Create{{pascalCase name}}Request, {{pascalCase name}}Repository } from
 "../domain/{{camelCase name}}";
-import { EventPublisher } from "../domain/item";
+import { EventPublisher, PaginationOptions, PaginatedResult } from "../domain/item";
 import { randomUUID } from "crypto";
 import { logger, metrics } from "../lib/observability";
 import { MetricUnit } from "@aws-lambda-powertools/metrics";
@@ -38,8 +38,8 @@ async create{{pascalCase name}}(request: Create{{pascalCase name}}Request): Prom
         return item;
         }
 
-        async list{{pascalCase name}}s(): Promise<{{pascalCase name}}[]> {
-            return this.repository.list();
+        async list{{pascalCase name}}s(options?: PaginationOptions): Promise<PaginatedResult<{{pascalCase name}}>> {
+            return this.repository.list(options);
             }
 
             async delete{{pascalCase name}}({{camelCase name}}Id: string): Promise<void> {

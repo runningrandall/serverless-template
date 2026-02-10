@@ -1,4 +1,4 @@
-import { Item, CreateItemRequest, ItemRepository, EventPublisher } from "../domain/item";
+import { Item, CreateItemRequest, ItemRepository, EventPublisher, PaginationOptions, PaginatedResult } from "../domain/item";
 import { randomUUID } from "crypto";
 import { logger, metrics } from "../lib/observability";
 import { MetricUnit } from "@aws-lambda-powertools/metrics";
@@ -36,8 +36,8 @@ export class ItemService {
         return item;
     }
 
-    async listItems(): Promise<Item[]> {
-        return this.repository.list();
+    async listItems(options?: PaginationOptions): Promise<PaginatedResult<Item>> {
+        return this.repository.list(options);
     }
 
     async deleteItem(itemId: string): Promise<void> {
