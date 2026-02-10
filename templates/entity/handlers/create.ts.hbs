@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { logger, metrics } from "../lib/observability";
 import { MetricUnit } from "@aws-lambda-powertools/metrics";
-import { Create{{pascalCase name}}Schema } from "../lib/schemas";
+import { Create{{pascalCase name}}Schema } from "../lib/{{dashCase name}}-schemas";
 import { commonMiddleware } from "../lib/middleware";
 import { AppError } from "../lib/error";
 import { Dynamo{{pascalCase name}}Repository } from "../adapters/dynamo-{{dashCase name}}-repository";
@@ -19,22 +19,15 @@ const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<A
     const body = event.body as unknown as any;
 
     if (!body) {
-    throw new AppError("Missing body", 400);
+    throw new AppError("Missing request body", 400);
     }
 
     const parseResult = Create{{pascalCase name}}Schema.safeParse(body);
 
     if (!parseResult.success) {
-    const issues = parseResult.error.issues;
-    logger.warn("Validation failed", { issues });
+    logger.warn("Validation failed", { issues: parseResult.error.issues });
     metrics.addMetric('ValidationErrors', MetricUnit.Count, 1);
-    return {
-    statusCode: 400,
-    body: JSON.stringify({
-    error: "Validation failed",
-    details: issues
-    })
-    };
+    throw parseResult.error;
     }
 
     const result = await service.create{{pascalCase name}}(parseResult.data);

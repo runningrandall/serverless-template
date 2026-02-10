@@ -73,7 +73,9 @@ describe('createItem handler', () => {
 
         expect(result.statusCode).toBe(400);
         const body = JSON.parse(result.body as string);
-        expect(body.error).toBe('Validation failed');
+        expect(body.error.code).toBe('VALIDATION_ERROR');
+        expect(body.error.message).toBe('Validation failed');
+        expect(body.error.details).toBeDefined();
         expect(mockCreateItem).not.toHaveBeenCalled();
     });
 

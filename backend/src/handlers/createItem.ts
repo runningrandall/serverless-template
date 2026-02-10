@@ -14,29 +14,22 @@ const publisher = new EventBridgePublisher(process.env.EVENT_BUS_NAME || "");
 const service = new ItemService(repository, publisher);
 
 const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<APIGatewayProxyResult> => {
-    // Add context to logger
     logger.addContext(context);
 
-    // Body is already parsed by middleware
     const body = event.body as unknown as any;
 
     if (!body) {
-        throw new AppError("Missing body", 400);
+        throw new AppError("Missing request body", 400);
     }
 
+    // Throws ZodError on failure — caught by errorHandlerMiddleware
     const parseResult = CreateItemSchema.safeParse(body);
 
     if (!parseResult.success) {
-        const issues = parseResult.error.issues;
-        logger.warn("Validation failed", { issues });
+        logger.warn("Validation failed", { issues: parseResult.error.issues });
         metrics.addMetric('ValidationErrors', MetricUnit.Count, 1);
-        return {
-            statusCode: 400,
-            body: JSON.stringify({
-                error: "Validation failed",
-                details: issues
-            })
-        };
+        // Throw ZodError so the centralized error handler formats it consistently
+        throw parseResult.error;
     }
 
     const result = await service.createItem(parseResult.data);
