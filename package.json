@@ -28,10 +28,23 @@
     },
     "pnpm": {
         "onlyBuiltDependencies": [
+            "@scarf/scarf",
+            "@tree-sitter-grammars/tree-sitter-yaml",
             "aws-sdk",
+            "core-js-pure",
+            "cypress",
             "esbuild",
             "sharp",
+            "tree-sitter",
+            "tree-sitter-json",
             "unrs-resolver"
-        ]
+        ],
+        "peerDependencyRules": {
+            "allowedVersions": {
+                "react": "19.x",
+                "react-dom": "19.x",
+                "tree-sitter": "*"
+            }
+        }
     }
 }
