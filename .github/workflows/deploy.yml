@@ -50,6 +50,12 @@ jobs:
       - name: Deploy Infrastructure
         run: pnpm --filter infra run deploy --require-approval never
 
+      - name: Generate API Docs
+        run: |
+          pnpm --filter backend gen:docs
+          mkdir -p frontend/public
+          cp backend/openapi.json frontend/public/openapi.json
+
       - name: Build and Deploy Frontend
         run: |
           # Determine STAGE_NAME (Logic must match bin/infra.ts)

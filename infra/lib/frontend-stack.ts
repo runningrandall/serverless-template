@@ -13,6 +13,26 @@ export class FrontendStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
+        // --- Security Headers ---
+        const securityHeaders = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeaders', {
+            securityHeadersBehavior: {
+                strictTransportSecurity: {
+                    accessControlMaxAge: cdk.Duration.days(365),
+                    includeSubdomains: true,
+                    preload: true,
+                    override: true,
+                },
+                contentTypeOptions: { override: true },
+                frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
+                xssProtection: { protection: true, modeBlock: true, override: true },
+                referrerPolicy: { referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
+                contentSecurityPolicy: {
+                    contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https:;",
+                    override: true,
+                },
+            },
+        });
+
         // --- Production ---
         this.prodBucket = new s3.Bucket(this, 'ProdWebsiteBucket', {
             removalPolicy: cdk.RemovalPolicy.RETAIN, // Keep prod data
@@ -28,6 +48,7 @@ export class FrontendStack extends cdk.Stack {
                 allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
                 cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
                 compress: true,
+                responseHeadersPolicy: securityHeaders,
             },
             defaultRootObject: 'index.html',
             errorResponses: [
@@ -62,6 +83,7 @@ export class FrontendStack extends cdk.Stack {
                 allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
                 cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
                 compress: true,
+                responseHeadersPolicy: securityHeaders,
             },
             // For non-prod with path-based routing (e.g. /branch-name/), 
             // specific error pages per branch are hard in S3/CF without Lambda@Edge.

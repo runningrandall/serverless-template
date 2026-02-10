@@ -4,12 +4,14 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "dotenv -e ../.env -- vitest run"
+    "test": "dotenv -e ../.env -- vitest run",
+    "gen:docs": "ts-node scripts/generate-openapi.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.4.0",
     "@aws-lambda-powertools/logger": "^2.30.2",
     "@aws-lambda-powertools/metrics": "^2.30.2",
     "@aws-lambda-powertools/tracer": "^2.30.2",
@@ -19,11 +21,14 @@
     "aws-jwt-verify": "^5.1.1",
     "aws-lambda": "^1.0.7",
     "electrodb": "^2.14.0",
+    "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.130",
     "@types/node": "^22.0.0",
+    "@types/yaml": "^1.9.7",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "vitest": "^1.0.0"
   }
