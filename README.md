@@ -251,7 +251,23 @@ Use `pnpm commit` for interactive conventional commits.
 
 ### 🚀 CI/CD (GitHub Actions)
 
-On PRs to `main`: Install → Test → Lint → E2E → Deploy Infra → Build & Deploy Frontend to S3/CloudFront.
+The pipeline runs on PRs to `main` with **3 parallel jobs**:
+
+| Job | What it does |
+|---|---|
+| **Test & Coverage** | Runs backend + infra tests with coverage, linting, E2E. Posts a **coverage table** as a PR comment. |
+| **Cost Estimate** | Synthesizes CDK and runs [Infracost](https://www.infracost.io/) to estimate monthly AWS costs. Posts a **cost table** as a PR comment. |
+| **Deploy** | Deploys infra (`cdk deploy`), generates API docs, builds and deploys frontend to S3/CloudFront. |
+
+**Setup required:**
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — GitHub Secrets for AWS
+- `INFRACOST_API_KEY` — free API key from [infracost.io](https://www.infracost.io/) (optional, cost job skips gracefully without it)
+
+Run coverage locally:
+```bash
+pnpm --filter backend test:coverage   # Vitest coverage report
+pnpm --filter infra test:coverage     # Jest coverage report
+```
 
 ### 🖥️ Frontend
 

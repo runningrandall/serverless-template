@@ -18,7 +18,7 @@ export default function Home() {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('An unknown error occurred');
+        setError((err as Error)?.message || 'An unknown error occurred');
       }
     } finally {
       setLoading(false);
@@ -45,7 +45,7 @@ export default function Home() {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('An unknown error occurred');
+        setError((err as Error)?.message || 'An unknown error occurred');
       }
     } finally {
       setLoading(false);
@@ -63,7 +63,7 @@ export default function Home() {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('An unknown error occurred');
+        setError((err as Error)?.message || 'An unknown error occurred');
       }
     } finally {
       setLoading(false);

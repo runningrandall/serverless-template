@@ -8,6 +8,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "dotenv -e ../.env -- jest",
+    "test:coverage": "dotenv -e ../.env -- jest --coverage",
     "cdk": "cdk",
     "deploy": "cdk deploy",
     "destroy": "cdk destroy",
