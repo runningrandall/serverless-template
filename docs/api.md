@@ -23,10 +23,389 @@ Authorization: Bearer <token>
 
 | Method | Path | Summary |
 |--------|------|---------|
+| `GET` | `/categories` | List categories (paginated) |
+| `POST` | `/categories` | Create a category |
+| `GET` | `/categories/{categoryId}` | Get a category by ID |
+| `DELETE` | `/categories/{categoryId}` | Delete a category |
 | `GET` | `/items` | List items (paginated) |
 | `POST` | `/items` | Create an item |
 | `GET` | `/items/{itemId}` | Get an item by ID |
 | `DELETE` | `/items/{itemId}` | Delete an item |
+
+---
+
+### `GET /categories`
+
+Returns a paginated list of service categories.
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+|------|----|------|----------|-------------|
+| `limit` | query | `string` | ❌ | Max items per page (default: 20) |
+| `cursor` | query | `string` | ❌ | Cursor from previous response |
+
+**Responses:**
+
+<details>
+<summary><code>200</code> — Paginated list of categories</summary>
+
+```json
+{
+  "items": [
+    {
+      "categoryId": "cat-abc-123",
+      "name": "Plumbing",
+      "description": "Plumbing repairs and installations",
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "cursor": "eyJway..."
+}
+```
+
+</details>
+
+<details>
+<summary><code>401</code> — Unauthorized</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>500</code> — Internal server error</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+---
+
+### `POST /categories`
+
+Creates a new service category.
+
+**Request Body:**
+
+```json
+{
+  "name": "Plumbing",
+  "description": "Plumbing repairs and installations"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | ✅ |  |
+| `description` | `string` | ❌ |  |
+
+**Responses:**
+
+<details>
+<summary><code>201</code> — Category created</summary>
+
+```json
+{
+  "categoryId": "cat-abc-123",
+  "name": "Plumbing",
+  "description": "Plumbing repairs and installations",
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+</details>
+
+<details>
+<summary><code>400</code> — Validation error</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>401</code> — Unauthorized</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>500</code> — Internal server error</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+---
+
+### `GET /categories/{categoryId}`
+
+Returns a single service category.
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+|------|----|------|----------|-------------|
+| `categoryId` | path | `string` | ✅ | Unique category identifier |
+
+**Responses:**
+
+<details>
+<summary><code>200</code> — Category found</summary>
+
+```json
+{
+  "categoryId": "cat-abc-123",
+  "name": "Plumbing",
+  "description": "Plumbing repairs and installations",
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+</details>
+
+<details>
+<summary><code>400</code> — Missing categoryId</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>401</code> — Unauthorized</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>404</code> — Category not found</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>500</code> — Internal server error</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+---
+
+### `DELETE /categories/{categoryId}`
+
+Deletes a service category by its unique identifier.
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+|------|----|------|----------|-------------|
+| `categoryId` | path | `string` | ✅ | Unique category identifier |
+
+**Responses:**
+
+<details>
+<summary><code>200</code> — Category deleted</summary>
+
+```json
+{
+  "message": "Category deleted"
+}
+```
+
+</details>
+
+<details>
+<summary><code>400</code> — Missing categoryId</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>401</code> — Unauthorized</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>500</code> — Internal server error</summary>
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Item not found",
+    "details": [
+      {
+        "path": "name",
+        "message": "Required"
+      }
+    ],
+    "requestId": "abc-123-def"
+  }
+}
+```
+
+</details>
 
 ---
 
@@ -558,6 +937,28 @@ Deletes an item by its unique identifier.
 }
 ```
 
+### CreateCategoryRequest
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "example": "Plumbing"
+    },
+    "description": {
+      "type": "string",
+      "example": "Plumbing repairs and installations"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
 ---
 
-*Generated at 2026-02-10T20:39:38.948Z from OpenAPI spec.*
+*Generated at 2026-02-10T21:06:41.438Z from OpenAPI spec.*

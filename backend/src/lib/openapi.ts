@@ -198,6 +198,112 @@ registry.registerPath({
     },
 });
 
+// ── Category Routes ──
+
+const CategoryResponseSchema = z.object({
+    categoryId: z.string().openapi({ example: 'cat-abc-123' }),
+    name: z.string().openapi({ example: 'Plumbing' }),
+    description: z.string().nullable().optional().openapi({ example: 'Plumbing repairs and installations' }),
+    createdAt: z.string().openapi({ example: '2024-01-01T00:00:00Z' }),
+});
+
+registry.registerPath({
+    method: 'get',
+    path: '/categories',
+    summary: 'List categories (paginated)',
+    description: 'Returns a paginated list of service categories.',
+    security: [{ BearerAuth: [] }],
+    request: {
+        query: z.object({
+            limit: z.string().optional().openapi({ example: '20', description: 'Max items per page (default: 20)' }),
+            cursor: z.string().optional().openapi({ example: 'eyJway...', description: 'Cursor from previous response' }),
+        }),
+    },
+    responses: {
+        200: {
+            description: 'Paginated list of categories',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        items: z.array(CategoryResponseSchema),
+                        cursor: z.string().nullable().openapi({ example: 'eyJway...' }),
+                    }),
+                },
+            },
+        },
+        401: { description: 'Unauthorized', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        500: { description: 'Internal server error', content: { 'application/json': { schema: ErrorResponseSchema } } },
+    },
+});
+
+registry.registerPath({
+    method: 'post',
+    path: '/categories',
+    summary: 'Create a category',
+    description: 'Creates a new service category.',
+    security: [{ BearerAuth: [] }],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        name: z.string().min(1).openapi({ example: 'Plumbing' }),
+                        description: z.string().optional().openapi({ example: 'Plumbing repairs and installations' }),
+                    }).openapi('CreateCategoryRequest'),
+                },
+            },
+        },
+    },
+    responses: {
+        201: { description: 'Category created', content: { 'application/json': { schema: CategoryResponseSchema } } },
+        400: { description: 'Validation error', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        401: { description: 'Unauthorized', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        500: { description: 'Internal server error', content: { 'application/json': { schema: ErrorResponseSchema } } },
+    },
+});
+
+registry.registerPath({
+    method: 'get',
+    path: '/categories/{categoryId}',
+    summary: 'Get a category by ID',
+    description: 'Returns a single service category.',
+    security: [{ BearerAuth: [] }],
+    request: {
+        params: z.object({
+            categoryId: z.string().openapi({ example: 'cat-abc-123', description: 'Unique category identifier' }),
+        }),
+    },
+    responses: {
+        200: { description: 'Category found', content: { 'application/json': { schema: CategoryResponseSchema } } },
+        400: { description: 'Missing categoryId', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        404: { description: 'Category not found', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        401: { description: 'Unauthorized', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        500: { description: 'Internal server error', content: { 'application/json': { schema: ErrorResponseSchema } } },
+    },
+});
+
+registry.registerPath({
+    method: 'delete',
+    path: '/categories/{categoryId}',
+    summary: 'Delete a category',
+    description: 'Deletes a service category by its unique identifier.',
+    security: [{ BearerAuth: [] }],
+    request: {
+        params: z.object({
+            categoryId: z.string().openapi({ example: 'cat-abc-123', description: 'Unique category identifier' }),
+        }),
+    },
+    responses: {
+        200: {
+            description: 'Category deleted',
+            content: { 'application/json': { schema: z.object({ message: z.string().openapi({ example: 'Category deleted' }) }) } },
+        },
+        400: { description: 'Missing categoryId', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        401: { description: 'Unauthorized', content: { 'application/json': { schema: ErrorResponseSchema } } },
+        500: { description: 'Internal server error', content: { 'application/json': { schema: ErrorResponseSchema } } },
+    },
+});
+
 export function generateOpenApiSpec() {
     const generator = new OpenApiGeneratorV3(registry.definitions);
 

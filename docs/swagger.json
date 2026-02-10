@@ -158,6 +158,23 @@
         "required": [
           "name"
         ]
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Plumbing"
+          },
+          "description": {
+            "type": "string",
+            "example": "Plumbing repairs and installations"
+          }
+        },
+        "required": [
+          "name"
+        ]
       }
     },
     "parameters": {}
@@ -473,6 +490,371 @@
           },
           "400": {
             "description": "Missing itemId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "summary": "List categories (paginated)",
+        "description": "Returns a paginated list of service categories.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "20",
+              "description": "Max items per page (default: 20)"
+            },
+            "required": false,
+            "description": "Max items per page (default: 20)",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "eyJway...",
+              "description": "Cursor from previous response"
+            },
+            "required": false,
+            "description": "Cursor from previous response",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of categories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "categoryId": {
+                            "type": "string",
+                            "example": "cat-abc-123"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "Plumbing"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "Plumbing repairs and installations"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "example": "2024-01-01T00:00:00Z"
+                          }
+                        },
+                        "required": [
+                          "categoryId",
+                          "name",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "eyJway..."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a category",
+        "description": "Creates a new service category.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categoryId": {
+                      "type": "string",
+                      "example": "cat-abc-123"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "Plumbing"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "Plumbing repairs and installations"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "example": "2024-01-01T00:00:00Z"
+                    }
+                  },
+                  "required": [
+                    "categoryId",
+                    "name",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories/{categoryId}": {
+      "get": {
+        "summary": "Get a category by ID",
+        "description": "Returns a single service category.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "cat-abc-123",
+              "description": "Unique category identifier"
+            },
+            "required": true,
+            "description": "Unique category identifier",
+            "name": "categoryId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categoryId": {
+                      "type": "string",
+                      "example": "cat-abc-123"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "Plumbing"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "Plumbing repairs and installations"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "example": "2024-01-01T00:00:00Z"
+                    }
+                  },
+                  "required": [
+                    "categoryId",
+                    "name",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing categoryId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Category not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a category",
+        "description": "Deletes a service category by its unique identifier.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "cat-abc-123",
+              "description": "Unique category identifier"
+            },
+            "required": true,
+            "description": "Unique category identifier",
+            "name": "categoryId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Category deleted"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing categoryId",
             "content": {
               "application/json": {
                 "schema": {
