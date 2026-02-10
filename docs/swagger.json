@@ -1,0 +1,508 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "HMaaS API",
+    "description": "Home Maintenance as a Service — RESTful API for managing items. All endpoints require a valid Cognito JWT bearer token."
+  },
+  "servers": [
+    {
+      "url": "https://{apiId}.execute-api.{region}.amazonaws.com/prod",
+      "description": "Production",
+      "variables": {
+        "apiId": {
+          "default": "xxxxx"
+        },
+        "region": {
+          "default": "us-east-1"
+        }
+      }
+    },
+    {
+      "url": "http://localhost:3001",
+      "description": "Local Development"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Cognito JWT access token"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "example": "Item not found"
+              },
+              "details": {
+                "nullable": true,
+                "example": [
+                  {
+                    "path": "name",
+                    "message": "Required"
+                  }
+                ]
+              },
+              "requestId": {
+                "type": "string",
+                "example": "abc-123-def"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "CreateItem": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Compass"
+          },
+          "description": {
+            "type": "string",
+            "example": "A magnetic compass"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "Item": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreateItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "itemId": {
+                "type": "string",
+                "example": "123-abc"
+              },
+              "createdAt": {
+                "type": "number",
+                "example": 1678900000000
+              },
+              "updatedAt": {
+                "type": "number",
+                "example": 1678900000000
+              }
+            },
+            "required": [
+              "itemId"
+            ]
+          }
+        ]
+      },
+      "ItemResponse": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "example": "123-abc"
+          },
+          "name": {
+            "type": "string",
+            "example": "Compass"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "A magnetic compass"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          }
+        },
+        "required": [
+          "itemId",
+          "name",
+          "createdAt"
+        ]
+      },
+      "CreateItemRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Compass"
+          },
+          "description": {
+            "type": "string",
+            "example": "A magnetic compass"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/items": {
+      "get": {
+        "summary": "List items (paginated)",
+        "description": "Returns a paginated list of items. Use `limit` and `cursor` query parameters to navigate pages.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "20",
+              "description": "Max items per page (default: 20)"
+            },
+            "required": false,
+            "description": "Max items per page (default: 20)",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "eyJway...",
+              "description": "Cursor from previous response for next page"
+            },
+            "required": false,
+            "description": "Cursor from previous response for next page",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "itemId": {
+                            "type": "string",
+                            "example": "123-abc"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "Compass"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "A magnetic compass"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "example": "2024-01-01T00:00:00Z"
+                          }
+                        },
+                        "required": [
+                          "itemId",
+                          "name",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "eyJway..."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an item",
+        "description": "Creates a new item. Returns the created item with generated `itemId` and `createdAt`.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Item created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{itemId}": {
+      "get": {
+        "summary": "Get an item by ID",
+        "description": "Returns a single item by its unique identifier.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "123-abc",
+              "description": "Unique item identifier"
+            },
+            "required": true,
+            "description": "Unique item identifier",
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "itemId": {
+                      "type": "string",
+                      "example": "123-abc"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "Compass"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "A magnetic compass"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "example": "2024-01-01T00:00:00Z"
+                    }
+                  },
+                  "required": [
+                    "itemId",
+                    "name",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing itemId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an item",
+        "description": "Deletes an item by its unique identifier.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "123-abc",
+              "description": "Unique item identifier"
+            },
+            "required": true,
+            "description": "Unique item identifier",
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Item deleted"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing itemId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

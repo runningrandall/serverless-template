@@ -308,7 +308,7 @@ jobs:
         run: |
           pnpm --filter backend gen:docs
           mkdir -p frontend/public
-          cp backend/openapi.json frontend/public/openapi.json
+          cp docs/swagger.json frontend/public/swagger.json
 
       - name: Build and Deploy Frontend
         run: |

@@ -7,7 +7,7 @@
     "test": "dotenv -e ../.env -- vitest run --exclude 'test/integration/**'",
     "test:coverage": "dotenv -e ../.env -- vitest run --coverage --exclude 'test/integration/**'",
     "test:integration": "dotenv -e ../.env -- vitest run --config vitest.integration.config.ts",
-    "gen:docs": "ts-node scripts/generate-openapi.ts"
+    "gen:docs": "npx tsx scripts/generate-api-docs.ts"
   },
   "keywords": [],
   "author": "",
