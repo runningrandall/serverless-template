@@ -94,189 +94,29 @@ pnpm dev:backend   # Watch-mode backend + local API
 
 ---
 
+## � Documentation
+
+The documentation has been split into detailed guides:
+
+- **[Project Structure](docs/project-structure.md)** — Layout and technologies.
+- **[Backend Architecture](docs/backend-architecture.md)** — Lambda, DynamoDB (ElectroDB), EventBridge, and DLQs.
+- **[Authentication & Authorization](docs/authentication.md)** — Cognito, Verified Permissions, and Lambda Authorizer.
+- **[Testing Strategy](docs/testing.md)** — Unit, Infra, E2E, and Integration testing guides.
+- **[CI/CD Pipelines](docs/cicd.md)** — GitHub Actions workflows and deployment strategy.
+- **[Observability](docs/observability.md)** — Metrics, Logging, Tracing, and Dashboards.
+- **[Secrets Management](docs/secrets-management.md)** — Handling credentials secure.
+- **[Cost Estimation](docs/cost-estimation.md)** — Infracost integration.
+- **[API Documentation](docs/api.md)** — OpenAPI specs.
+
 ## Features
 
-### 🔧 Backend Middleware (Middy)
+- **Backend**: Lambda (Node.js 22), Middy Middleware, ElectroDB (Single Table).
+- **Frontend**: Next.js 16, Tailwind, shadcn/ui.
+- **Infrastructure**: AWS CDK, ephemeral environments per branch.
+- **Security**: WAF, cdk-nag, fine-grained permissions.
+- **Tools**: Plop generator, Husky git hooks.
 
-All Lambda handlers use a shared `commonMiddleware()` that bundles:
-- **JSON body parsing** — auto-parses `application/json` request bodies
-- **Header normalization** — case-insensitive header access
-- **CORS** — centralized cross-origin configuration
-- **Metrics** — auto-flushes Powertools Metrics (including cold start tracking)
-- **Error handling** — catches thrown errors and returns structured responses
-
-```typescript
-import { commonMiddleware } from "../lib/middleware";
-import { AppError } from "../lib/error";
-
-const baseHandler = async (event, context) => {
-    if (!event.pathParameters?.id) throw new AppError("Missing id", 400);
-    // ... handler logic (no try/catch needed)
-};
-
-export const handler = commonMiddleware(baseHandler);
-```
-
-### 📊 CloudWatch Dashboard
-
-Automatically deployed with your stack. Includes:
-- **API Gateway**: Request count, 4xx/5xx errors, latency percentiles (p50, p90, p99)
-- **Lambda**: Invocations, errors, and duration for all functions
-- **DynamoDB**: Consumed read/write capacity, throttle events
-- **Dead Letter Queue**: Messages visible, messages sent
-- **WAF**: Blocked requests
-
-Find it at **CloudWatch → Dashboards → `<stage>-ServiceDashboard`**.
-
-### � CloudWatch Alarms + SNS
-
-Automated alerting for production issues:
-
-| Alarm | Threshold | Description |
-|---|---|---|
-| API 5xx Errors | ≥ 5 in 10 min | Server-side errors detected |
-| API Latency | p99 > 3s for 15 min | High latency spike |
-| Lambda Errors | ≥ 3 per function in 10 min | Individual function failures |
-| DynamoDB Throttle | ≥ 1 event in 10 min | Read throttle events |
-| DLQ Messages | ≥ 1 message | Lambda failures sent to DLQ |
-
-Subscribe to alerts:
-```bash
-aws sns subscribe --topic-arn <AlarmTopicArn from deploy output> --protocol email --notification-endpoint your@email.com
-```
-
-### 💀 Dead Letter Queues (DLQ)
-
-All Lambda functions and EventBridge rules are configured with a shared SQS Dead Letter Queue. Failed invocations are captured for debugging instead of being silently lost. The DLQ retains messages for 14 days.
-
-### 🛡️ WAF (Web Application Firewall)
-
-API Gateway is protected by AWS WAFv2 with:
-- **Rate limiting**: 1,000 requests per 5 minutes per IP
-- **AWS Common Rule Set**: Blocks known malicious inputs (XSS, SQLi, etc.)
-- **Known Bad Inputs**: Blocks requests matching known attack signatures
-
-### 📈 API Gateway Usage Plans
-
-Built-in throttling and quotas:
-- **Rate**: 100 requests/second
-- **Burst**: 200 requests
-- **Daily Quota**: 10,000 requests
-
-### 📏 Powertools Metrics
-
-Custom CloudWatch Metrics via `@aws-lambda-powertools/metrics`:
-- **Cold Start** tracking (automatic via middleware)
-- **Custom business metrics**: `ItemsCreated`, `ValidationErrors`, `EventPublishErrors`
-- Metrics published to the `Hmaas` CloudWatch namespace
-
-```typescript
-import { metrics } from "../lib/observability";
-import { MetricUnit } from "@aws-lambda-powertools/metrics";
-
-metrics.addMetric('ItemsCreated', MetricUnit.Count, 1);
-```
-
-### 🔒 Security (cdk-nag)
-
-[cdk-nag](https://github.com/cdklabs/cdk-nag) runs `AwsSolutionsChecks` during every `cdk synth`. All suppressions are documented with justifications in `infra-stack.ts`.
-
-### 🔐 Authentication & Authorization
-
-- **Amazon Cognito** User Pool with email sign-up
-- **Amazon Verified Permissions** (Cedar policies) for fine-grained RBAC
-- **Lambda Token Authorizer** validates JWTs and checks Cedar policies per request
-
-### 📡 Event-Driven Messaging
-
-- **Amazon EventBridge** bus with `ItemCreated` events
-- `processEvent` Lambda listener
-- EventBridge rule deadLetterQueue for failed deliveries
-
-### 🗄️ Database Seeding (Custom Resource)
-
-Reference data auto-seeded on stack deploy. Edit seed data in `backend/src/handlers/seedData.ts`.
-
-### 📝 Runtime Validation (Zod)
-
-Request bodies validated using Zod schemas in `backend/src/lib/schemas.ts`.
-
-### 📖 API Documentation (OpenAPI)
-
-Generate spec: `pnpm --filter backend gen:docs` — view at `/api-docs` in the frontend.
-
-### 📚 Storybook
-
-```bash
-pnpm --filter frontend storybook        # Dev server
-pnpm --filter frontend build-storybook  # Static build
-```
-
-### 🏷️ Resource Tagging
-
-All resources are automatically tagged via CDK:
-
-| Tag | Value |
-|---|---|
-| `Project` | App name (default: `Hmaas`) |
-| `Stage` | Stage name (branch or username) |
-| `ManagedBy` | `CDK` |
-
-### 🧪 Testing
-
-| Type | Tool | Command |
-|---|---|---|
-| Backend Unit | Vitest | `pnpm --filter backend test` |
-| Infra Snapshot | Jest | `pnpm --filter infra test` |
-| E2E + a11y | Cypress | `pnpm --filter frontend test:e2e` |
-| Integration | Node.js | `API_URL=<url> pnpm test:integration` |
-| All Unit | — | `pnpm test` |
-
-### 🏗️ Code Scaffolding (Plop)
-
-```bash
-pnpm generate
-# endpoint → handler + test
-# component → React component + barrel export + Storybook story
-```
-
-### 🪝 Git Hooks
-
-| Hook | Action |
-|---|---|
-| **pre-commit** | `lint-staged` (ESLint --fix on `.ts`/`.tsx`) |
-| **pre-push** | `pnpm test` (all tests must pass) |
-
-Use `pnpm commit` for interactive conventional commits.
-
-### 🚀 CI/CD (GitHub Actions)
-
-The pipeline runs on PRs to `main` with **3 parallel jobs**:
-
-| Job | What it does |
-|---|---|
-| **Test & Coverage** | Runs backend + infra tests with coverage, linting, E2E. Posts a **coverage table** as a PR comment. |
-| **Cost Estimate** | Synthesizes CDK and runs [Infracost](https://www.infracost.io/) to estimate monthly AWS costs. Posts a **cost table** as a PR comment. |
-| **Deploy** | Deploys infra (`cdk deploy`), generates API docs, builds and deploys frontend to S3/CloudFront. |
-
-**Setup required:**
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — GitHub Secrets for AWS
-- `INFRACOST_API_KEY` — free API key from [infracost.io](https://www.infracost.io/) (optional, cost job skips gracefully without it)
-
-Run coverage locally:
-```bash
-pnpm --filter backend test:coverage   # Vitest coverage report
-pnpm --filter infra test:coverage     # Jest coverage report
-```
-
-### 🖥️ Frontend
-
-- **Next.js 16** with App Router and static export
-- **Tailwind CSS** + **shadcn/ui** components
-- **Admin Dashboard**, Login, Profile pages
-- **CloudFront** with prod/non-prod split
-
----
+[Read more in Project Structure](docs/project-structure.md).
 
 ## Available Scripts
 
@@ -285,14 +125,9 @@ pnpm --filter infra test:coverage     # Jest coverage report
 | `pnpm dev` | Start Next.js dev server |
 | `pnpm build` | Build all workspaces |
 | `pnpm test` | Run all unit tests |
-| `pnpm test:integration` | Run integration tests against deployed API |
+| `pnpm test:coverage` | Run all tests with coverage |
 | `pnpm deploy` | Deploy infrastructure to AWS |
 | `pnpm generate` | Scaffold new endpoint or component |
-| `pnpm commit` | Interactive conventional commit |
-| `pnpm db:start` | Start DynamoDB Local |
-| `pnpm db:init` | Create DynamoDB tables |
-| `pnpm db:seed` | Seed local database |
-| `pnpm api:start` | Start local API (SAM) |
 
 ## Deployment
 
@@ -300,10 +135,7 @@ pnpm --filter infra test:coverage     # Jest coverage report
 pnpm deploy  # Ephemeral stack named after your username
 ```
 
-Three CDK stacks:
-- **`AuthStack-<stage>`** — Cognito + Verified Permissions
-- **`InfraStack-<stage>`** — API Gateway, Lambda, DynamoDB, EventBridge, WAF, Alarms, Dashboard
-- **`FrontendStack`** — S3 + CloudFront (shared)
+For detailed deployment and CI/CD info, see [CI/CD Pipelines](docs/cicd.md).
 
 ## Contributing
 
