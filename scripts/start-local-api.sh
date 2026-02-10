@@ -7,9 +7,20 @@ pnpm --filter infra run synth
 # connecting to local DDB via host networking or special DNS
 # For Docker on Mac/Windows, host.docker.internal resolves to host machine
 
-export TABLE_NAME="serverless-template-table"
-export LOCAL_DYNAMODB_ENDPOINT="http://host.docker.internal:8000"
-export AWS_REGION="us-east-1"
+
+# Generate env.json from current environment variables
+# We use node to create the JSON file safely
+node -e '
+  const fs = require("fs");
+  const env = {
+    "InfraStack": {
+      "TABLE_NAME": process.env.TABLE_NAME,
+      "LOCAL_DYNAMODB_ENDPOINT": process.env.LOCAL_DYNAMODB_ENDPOINT,
+      "AWS_REGION": process.env.AWS_REGION
+    }
+  };
+  fs.writeFileSync("env.json", JSON.stringify(env, null, 2));
+'
 
 sam local start-api \
     -t infra/cdk.out/InfraStack.template.json \
@@ -19,5 +30,6 @@ sam local start-api \
     # Network host might need adjustment depending on OS/Docker setup, 
     # often accessing host.docker.internal works better for Mac
 
-# Create dummy env.json if needed
-echo "{}" > env.json
+# Clean up env.json after run (optional, but good practice)
+# rm env.json
+

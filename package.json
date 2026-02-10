@@ -15,12 +15,13 @@
         "db:start": "./scripts/start-local-db.sh",
         "db:init": "node ./scripts/init-local-db.js",
         "db:seed": "node ./scripts/seed-local-db.js",
-        "api:start": "./scripts/start-local-api.sh",
-        "dev:backend": "pnpm --filter backend run build --watch & pnpm api:start"
+        "api:start": "dotenv -e .env -- ./scripts/start-local-api.sh",
+        "dev:backend": "dotenv -e .env -- pnpm --filter backend run build --watch & pnpm api:start"
     },
     "devDependencies": {
         "@aws-sdk/client-dynamodb": "^3.985.0",
         "concurrently": "^9.2.1",
+        "dotenv-cli": "^11.0.0",
         "husky": "^9.1.7",
         "lint-staged": "^16.2.7",
         "typescript": "^5.3.3"

@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib/core';
+import * as dotenv from 'dotenv';
 import { InfraStack } from '../lib/infra-stack';
 import { AuthStack } from '../lib/auth-stack';
 
 import * as os from 'os';
+import * as path from 'path';
+
+// Load environment variables from .env file
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const app = new cdk.App();
 
@@ -24,14 +29,15 @@ const getStageName = (): string => {
 };
 
 const stageName = getStageName();
-console.log(`Deploying to stage: ${stageName}`);
+const appName = process.env.APP_NAME || 'Hmaas';
+console.log(`Deploying ${appName} to stage: ${stageName}`);
 
-const authStack = new AuthStack(app, `HmaasAuthStack-${stageName}`, {
+const authStack = new AuthStack(app, `${appName}AuthStack-${stageName}`, {
   env,
   stageName
 });
 
-new InfraStack(app, `HmaasInfraStack-${stageName}`, {
+new InfraStack(app, `${appName}InfraStack-${stageName}`, {
   env,
   auth: authStack,
   stageName

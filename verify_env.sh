@@ -1,0 +1,1 @@
+echo "TABLE_NAME is $TABLE_NAME"

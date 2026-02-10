@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "dotenv -e ../.env -- vitest run"
   },
   "keywords": [],
   "author": "",
