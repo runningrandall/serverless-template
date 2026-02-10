@@ -7,9 +7,11 @@ import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as path from 'path';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { AuthStack } from './auth-stack';
+import { NagSuppressions } from 'cdk-nag';
 
 interface InfraStackProps extends cdk.StackProps {
   auth: AuthStack;
@@ -26,6 +28,30 @@ export class InfraStack extends cdk.Stack {
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT for production
+    });
+
+    // 1b. DB Seed Custom Resource
+    const seedLambda = new nodejs.NodejsFunction(this, 'seedDataLambda', {
+      entry: path.join(__dirname, '../../backend/src/handlers/seedData.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TABLE_NAME: table.tableName,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+    });
+    table.grantWriteData(seedLambda);
+
+    new cdk.CustomResource(this, 'SeedDataResource', {
+      serviceToken: seedLambda.functionArn,
+      properties: {
+        // Change this value to force re-seeding on next deploy
+        Version: '1',
+      },
     });
 
     // 2. API Gateway
@@ -97,10 +123,6 @@ export class InfraStack extends cdk.Stack {
       bundling: {
         minify: true,
         sourceMap: true,
-        // aws-jwt-verify is a dependency, verifiedpermissions client is too.
-        // NodejsFunction bundles dependencies in package.json by default if not in externalModules.
-        // We should ensure they are bundled or layer is used. 
-        // Default bundling is usually fine for these.
       },
     });
 
@@ -157,6 +179,91 @@ export class InfraStack extends cdk.Stack {
       value: api.url,
     });
 
+    // ─── CloudWatch Dashboard ───
+    const allLambdas = [createItemLambda, getItemLambda, listItemsLambda, deleteItemLambda, processEventLambda, authLambda];
 
+    const dashboard = new cloudwatch.Dashboard(this, 'ServiceDashboard', {
+      dashboardName: `${props.stageName}-ServiceDashboard`,
+    });
+
+    // API Gateway widgets
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'API Gateway - Request Count',
+        left: [api.metricCount({ period: cdk.Duration.minutes(5) })],
+        width: 8,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'API Gateway - 4xx / 5xx Errors',
+        left: [
+          api.metricClientError({ period: cdk.Duration.minutes(5) }),
+          api.metricServerError({ period: cdk.Duration.minutes(5) }),
+        ],
+        width: 8,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'API Gateway - Latency (p50, p90, p99)',
+        left: [
+          api.metricLatency({ statistic: 'p50', period: cdk.Duration.minutes(5) }),
+          api.metricLatency({ statistic: 'p90', period: cdk.Duration.minutes(5) }),
+          api.metricLatency({ statistic: 'p99', period: cdk.Duration.minutes(5) }),
+        ],
+        width: 8,
+      }),
+    );
+
+    // Lambda widgets
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Lambda - Invocations',
+        left: allLambdas.map(fn => fn.metricInvocations({ period: cdk.Duration.minutes(5) })),
+        width: 8,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Lambda - Errors',
+        left: allLambdas.map(fn => fn.metricErrors({ period: cdk.Duration.minutes(5) })),
+        width: 8,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Lambda - Duration (avg)',
+        left: allLambdas.map(fn => fn.metricDuration({ period: cdk.Duration.minutes(5) })),
+        width: 8,
+      }),
+    );
+
+    // DynamoDB widgets
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'DynamoDB - Consumed Read/Write Capacity',
+        left: [
+          table.metricConsumedReadCapacityUnits({ period: cdk.Duration.minutes(5) }),
+          table.metricConsumedWriteCapacityUnits({ period: cdk.Duration.minutes(5) }),
+        ],
+        width: 12,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'DynamoDB - Throttled Requests',
+        left: [
+          table.metric('ReadThrottleEvents', { period: cdk.Duration.minutes(5) }),
+          table.metric('WriteThrottleEvents', { period: cdk.Duration.minutes(5) }),
+        ],
+        width: 12,
+      }),
+    );
+
+    // ─── cdk-nag suppressions for template-level acceptable patterns ───
+    NagSuppressions.addStackSuppressions(this, [
+      { id: 'AwsSolutions-APIG1', reason: 'Access logging not required for dev/template stage' },
+      { id: 'AwsSolutions-APIG2', reason: 'Request validation handled by Middy middleware at handler level' },
+      { id: 'AwsSolutions-APIG4', reason: 'Authorization is handled by Lambda Token Authorizer' },
+      { id: 'AwsSolutions-APIG6', reason: 'Execution logging not required for dev/template stage' },
+      { id: 'AwsSolutions-COG4', reason: 'Using Lambda Token Authorizer instead of Cognito Authorizer' },
+      { id: 'AwsSolutions-DDB3', reason: 'Point-in-time recovery not required for dev/template stage' },
+      { id: 'AwsSolutions-IAM4', reason: 'Managed policies acceptable for Lambda execution roles in template' },
+      { id: 'AwsSolutions-IAM5', reason: 'Wildcard permissions acceptable for DynamoDB index access in template' },
+      { id: 'AwsSolutions-L1', reason: 'Using Node.js 22.x which is current' },
+      { id: 'AwsSolutions-SQS3', reason: 'No SQS queues used - EventBridge targets Lambda directly' },
+    ], true);
   }
 }
+

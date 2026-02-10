@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { InfraStack } from '../lib/infra-stack';
 import { AuthStack } from '../lib/auth-stack';
 import { FrontendStack } from '../lib/frontend-stack';
+import { AwsSolutionsChecks } from 'cdk-nag';
 
 import * as os from 'os';
 import * as path from 'path';
@@ -12,6 +13,9 @@ import * as path from 'path';
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const app = new cdk.App();
+
+// Apply cdk-nag security checks
+cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
 // Define env to be used for both stacks
 const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION };
@@ -51,3 +55,4 @@ new InfraStack(app, `${appName}InfraStack-${stageName}`, {
   auth: authStack,
   stageName
 });
+

@@ -1,0 +1,47 @@
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { logger } from "../lib/observability";
+import { commonMiddleware } from "../lib/middleware";
+import { AppError } from "../lib/error";
+
+const baseHandler = async (event: APIGatewayProxyEvent, context: any): Promise<APIGatewayProxyResult> => {
+    logger.addContext(context);
+
+    {{#if (eq method "GET")}}
+    // TODO: Implement {{camelCase name}} logic
+    return {
+        statusCode: 200,
+        body: JSON.stringify({ message: "{{camelCase name}} handler" }),
+    };
+    {{else if (eq method "POST")}}
+    const body = event.body as unknown as any;
+
+    if (!body) {
+        throw new AppError("Missing body", 400);
+    }
+
+    // TODO: Validate body and implement {{camelCase name}} logic
+    return {
+        statusCode: 201,
+        body: JSON.stringify({ message: "{{camelCase name}} handler", data: body }),
+    };
+    {{else if (eq method "DELETE")}}
+    const id = event.pathParameters?.id;
+    if (!id) {
+        throw new AppError("Missing id", 400);
+    }
+
+    // TODO: Implement {{camelCase name}} logic
+    return {
+        statusCode: 200,
+        body: JSON.stringify({ message: "Deleted", id }),
+    };
+    {{else}}
+    // TODO: Implement {{camelCase name}} logic
+    return {
+        statusCode: 200,
+        body: JSON.stringify({ message: "{{camelCase name}} handler" }),
+    };
+    {{/if}}
+};
+
+export const handler = commonMiddleware(baseHandler);

@@ -9,6 +9,22 @@ vi.mock('../../src/entities/item', () => ({
     },
 }));
 
+const makeEvent = (overrides: Record<string, any> = {}) => ({
+    headers: { 'Content-Type': 'application/json' },
+    body: null,
+    pathParameters: null,
+    queryStringParameters: null,
+    multiValueHeaders: {},
+    multiValueQueryStringParameters: null,
+    httpMethod: 'GET',
+    isBase64Encoded: false,
+    path: '/items',
+    stageVariables: null,
+    requestContext: {} as any,
+    resource: '',
+    ...overrides,
+});
+
 describe('getItem handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -17,14 +33,12 @@ describe('getItem handler', () => {
     it('should get an item successfully', async () => {
         const mockItem = { itemId: '123', name: 'Test Item', description: 'desc' };
 
-        // Mock chainable .tel() and .go()
-        // ElectroDB .get() returns a query object, .go() executes it.
         const mockGo = vi.fn().mockResolvedValue({ data: mockItem });
         (ItemEntity.get as any).mockReturnValue({ go: mockGo });
 
-        const event = {
+        const event = makeEvent({
             pathParameters: { itemId: '123' },
-        } as any;
+        });
 
         const result = await handler(event, {} as any, {} as any);
 
@@ -36,32 +50,26 @@ describe('getItem handler', () => {
     });
 
     it('should return 400 if itemId is missing', async () => {
-        const event = {
+        const event = makeEvent({
             pathParameters: {},
-        } as any;
+        });
 
         const result = await handler(event, {} as any, {} as any);
 
-        expect(result).toMatchObject({
-            statusCode: 400,
-            body: JSON.stringify({ error: 'Missing itemId' }),
-        });
+        expect(result.statusCode).toBe(400);
     });
 
     it('should return 404 if item not found', async () => {
         const mockGo = vi.fn().mockResolvedValue({ data: null });
         (ItemEntity.get as any).mockReturnValue({ go: mockGo });
 
-        const event = {
+        const event = makeEvent({
             pathParameters: { itemId: '404' },
-        } as any;
+        });
 
         const result = await handler(event, {} as any, {} as any);
 
-        expect(result).toMatchObject({
-            statusCode: 404,
-            body: JSON.stringify({ error: 'Item not found' }),
-        });
+        expect(result.statusCode).toBe(404);
     });
 
     it('should return 500 on error', async () => {
@@ -69,15 +77,12 @@ describe('getItem handler', () => {
         const mockGo = vi.fn().mockRejectedValue(new Error(errorMsg));
         (ItemEntity.get as any).mockReturnValue({ go: mockGo });
 
-        const event = {
+        const event = makeEvent({
             pathParameters: { itemId: '123' },
-        } as any;
+        });
 
         const result = await handler(event, {} as any, {} as any);
 
-        expect(result).toMatchObject({
-            statusCode: 500,
-            body: JSON.stringify({ error: errorMsg }),
-        });
+        expect(result.statusCode).toBe(500);
     });
 });

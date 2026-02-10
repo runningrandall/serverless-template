@@ -1,0 +1,31 @@
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { handler } from '../../src/handlers/{{camelCase name}}';
+
+describe('{{camelCase name}} handler', () => {
+beforeEach(() => {
+vi.clearAllMocks();
+});
+
+const makeEvent = (overrides: Record<string, any> = {}) => ({
+    headers: { 'Content-Type': 'application/json' },
+    body: null,
+    pathParameters: null,
+    queryStringParameters: null,
+    multiValueHeaders: {},
+    multiValueQueryStringParameters: null,
+    httpMethod: '{{method}}',
+    isBase64Encoded: false,
+    path: '/',
+    stageVariables: null,
+    requestContext: {} as any,
+    resource: '',
+    ...overrides,
+    });
+
+    it('should respond successfully', async () => {
+    const event = makeEvent();
+    const result = await handler(event, {} as any, {} as any);
+
+    expect(result.statusCode).toBeLessThan(400);
+    });
+    });
