@@ -116,6 +116,7 @@ export default function Home() {
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               placeholder="Item name..."
+              aria-label="New item name"
               className="flex-1 rounded-md border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               disabled={loading}
             />
@@ -161,6 +162,7 @@ export default function Home() {
                   <button
                     onClick={() => handleDelete(item.itemId)}
                     disabled={loading}
+                    aria-label={`Delete ${item.name}`}
                     className="text-red-600 hover:text-red-800 font-medium text-sm px-3 py-1 rounded hover:bg-red-50 transition-colors"
                   >
                     Delete

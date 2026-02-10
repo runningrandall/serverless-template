@@ -3,7 +3,7 @@
     "private": true,
     "lint-staged": {
         "frontend/**/*.{ts,tsx}": [
-            "pnpm --filter frontend lint --fix"
+            "pnpm --filter frontend exec eslint --fix"
         ]
     },
     "scripts": {
