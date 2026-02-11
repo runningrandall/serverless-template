@@ -1,6 +1,6 @@
 {
     "name": "serverless-template-monorepo",
-    "version": "0.0.0",
+    "version": "1.0.0",
     "private": true,
     "lint-staged": {
         "frontend/**/*.{ts,tsx}": [
