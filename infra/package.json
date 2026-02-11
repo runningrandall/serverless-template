@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@aws-cdk/aws-cognito-identitypool-alpha": "2.186.0-alpha.0",
-    "aws-cdk-lib": "^2.130.0",
+    "aws-cdk-lib": "^2.238.0",
     "constructs": "^10.0.0",
     "dotenv": "^17.2.4",
     "source-map-support": "^0.5.21"
