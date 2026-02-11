@@ -42,7 +42,8 @@ describe('DynamoItemRepository', () => {
 
             const result = await repo.create(sampleItem);
 
-            expect(mockCreate).toHaveBeenCalledWith(sampleItem);
+            const { createdAt, ...expectedParams } = sampleItem;
+            expect(mockCreate).toHaveBeenCalledWith(expectedParams);
             expect(result).toEqual(sampleItem);
         });
 
