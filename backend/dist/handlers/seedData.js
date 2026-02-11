@@ -1,9 +1,9 @@
-import { CloudFormationCustomResourceEvent, Context } from 'aws-lambda';
-import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
-
-const dynamodb = new DynamoDBClient({});
-const TABLE_NAME = process.env.TABLE_NAME!;
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = void 0;
+const client_dynamodb_1 = require("@aws-sdk/client-dynamodb");
+const dynamodb = new client_dynamodb_1.DynamoDBClient({});
+const TABLE_NAME = process.env.TABLE_NAME;
 // Reference data to seed into the table on stack creation/update
 const SEED_DATA = [
     {
@@ -57,13 +57,10 @@ const SEED_DATA = [
         __edb_v__: { S: '1' },
     },
 ];
-
-
-export const handler = async (event: CloudFormationCustomResourceEvent, context: Context) => {
+const handler = async (event, context) => {
     console.log('Seed handler invoked', JSON.stringify(event));
-
     const responseUrl = event.ResponseURL;
-    const responseBody: Record<string, any> = {
+    const responseBody = {
         Status: 'SUCCESS',
         Reason: `See CloudWatch Log Stream: ${context.logStreamName}`,
         PhysicalResourceId: context.logStreamName,
@@ -72,45 +69,42 @@ export const handler = async (event: CloudFormationCustomResourceEvent, context:
         LogicalResourceId: event.LogicalResourceId,
         Data: {},
     };
-
     try {
         if (event.RequestType === 'Create' || event.RequestType === 'Update') {
             console.log(`Seeding ${SEED_DATA.length} items into ${TABLE_NAME}`);
-
             for (const item of SEED_DATA) {
-                await dynamodb.send(new PutItemCommand({
+                await dynamodb.send(new client_dynamodb_1.PutItemCommand({
                     TableName: TABLE_NAME,
                     Item: item,
                     ConditionExpression: 'attribute_not_exists(pk)', // Don't overwrite existing data
                 })).catch((err) => {
                     if (err.name === 'ConditionalCheckFailedException') {
                         console.log(`Item ${item.pk.S} already exists, skipping.`);
-                    } else {
+                    }
+                    else {
                         throw err;
                     }
                 });
             }
-
             responseBody.Data = { SeededCount: SEED_DATA.length };
             console.log('Seeding complete.');
         }
-
         if (event.RequestType === 'Delete') {
             console.log('Delete request — no action needed for seed data.');
         }
-    } catch (error: any) {
+    }
+    catch (error) {
         console.error('Seed handler error:', error);
         responseBody.Status = 'FAILED';
         responseBody.Reason = error.message;
     }
-
     // Send response to CloudFormation
     const response = await fetch(responseUrl, {
         method: 'PUT',
         body: JSON.stringify(responseBody),
         headers: { 'Content-Type': '' },
     });
-
     console.log(`CloudFormation response status: ${response.status}`);
     return;
 };
+exports.handler = handler;

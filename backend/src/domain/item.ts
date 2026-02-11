@@ -1,7 +1,7 @@
 export interface Item {
     itemId: string;
     name: string;
-    description?: string | null;
+    description?: string;
     createdAt: string;
 }
 

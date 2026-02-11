@@ -1,25 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
-const item_1 = require("../entities/item");
 const observability_1 = require("../lib/observability");
-const handler = async (event, context) => {
+const middleware_1 = require("../lib/middleware");
+const dynamo_item_repository_1 = require("../adapters/dynamo-item-repository");
+const event_bridge_publisher_1 = require("../adapters/event-bridge-publisher");
+const item_service_1 = require("../application/item-service");
+const repository = new dynamo_item_repository_1.DynamoItemRepository();
+const publisher = new event_bridge_publisher_1.EventBridgePublisher(process.env.EVENT_BUS_NAME || "");
+const service = new item_service_1.ItemService(repository, publisher);
+const baseHandler = async (event, context) => {
     observability_1.logger.addContext(context);
-    try {
-        const result = await item_1.ItemEntity.scan.go();
-        return {
-            statusCode: 200,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify(result.data),
-        };
-    }
-    catch (error) {
-        observability_1.logger.error("Error listing items", { error });
-        return {
-            statusCode: 500,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ error: error.message }),
-        };
-    }
+    const limit = event.queryStringParameters?.limit
+        ? parseInt(event.queryStringParameters.limit, 10)
+        : undefined;
+    const cursor = event.queryStringParameters?.cursor || undefined;
+    const result = await service.listItems({ limit, cursor });
+    return {
+        statusCode: 200,
+        body: JSON.stringify(result),
+    };
 };
-exports.handler = handler;
+exports.handler = (0, middleware_1.commonMiddleware)(baseHandler);

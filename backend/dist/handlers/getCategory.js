@@ -4,22 +4,22 @@ exports.handler = void 0;
 const observability_1 = require("../lib/observability");
 const middleware_1 = require("../lib/middleware");
 const error_1 = require("../lib/error");
-const dynamo_item_repository_1 = require("../adapters/dynamo-item-repository");
+const dynamo_category_repository_1 = require("../adapters/dynamo-category-repository");
 const event_bridge_publisher_1 = require("../adapters/event-bridge-publisher");
-const item_service_1 = require("../application/item-service");
-const repository = new dynamo_item_repository_1.DynamoItemRepository();
+const category_service_1 = require("../application/category-service");
+const repository = new dynamo_category_repository_1.DynamoCategoryRepository();
 const publisher = new event_bridge_publisher_1.EventBridgePublisher(process.env.EVENT_BUS_NAME || "");
-const service = new item_service_1.ItemService(repository, publisher);
+const service = new category_service_1.CategoryService(repository, publisher);
 const baseHandler = async (event, context) => {
     observability_1.logger.addContext(context);
-    const itemId = event.pathParameters?.itemId;
-    if (!itemId) {
-        throw new error_1.AppError("Missing itemId", 400);
+    const categoryId = event.pathParameters?.categoryId;
+    if (!categoryId) {
+        throw new error_1.AppError("Missing categoryId", 400);
     }
-    await service.deleteItem(itemId);
+    const result = await service.getCategory(categoryId);
     return {
         statusCode: 200,
-        body: JSON.stringify({ message: "Item deleted" }),
+        body: JSON.stringify(result),
     };
 };
 exports.handler = (0, middleware_1.commonMiddleware)(baseHandler);

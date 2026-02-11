@@ -28,6 +28,7 @@ const DEFAULT_PAGE_SIZE = 20;
 
 export class DynamoCategoryRepository implements CategoryRepository {
     async create(category: Category): Promise<Category> {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { createdAt, ...data } = category;
         const result = await DBService.entities.category.create(data).go();
         return parseCategory(result.data);

@@ -29,7 +29,6 @@ export const handler = async (event: APIGatewayTokenAuthorizerEvent): Promise<Au
         // Resource is currently global "Resource" for simplicity in AVP schema.
 
         let action = "ReadDashboard"; // Default safer read action
-        const method = event.methodArn.split(':')[2]; // GET, POST, etc (Wait, methodArn format is arn:aws:execute-api:region:account:apiId/stage/method/path)
         // Actually methodArn is the ARN of the method being called.
         // But we might want to just check generic permissions.
 

@@ -3,31 +3,28 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
 const observability_1 = require("../lib/observability");
 const metrics_1 = require("@aws-lambda-powertools/metrics");
-const schemas_1 = require("../lib/schemas");
+const category_schemas_1 = require("../lib/category-schemas");
 const middleware_1 = require("../lib/middleware");
 const error_1 = require("../lib/error");
-const dynamo_item_repository_1 = require("../adapters/dynamo-item-repository");
+const dynamo_category_repository_1 = require("../adapters/dynamo-category-repository");
 const event_bridge_publisher_1 = require("../adapters/event-bridge-publisher");
-const item_service_1 = require("../application/item-service");
-// Composition Root (Dependency Injection)
-const repository = new dynamo_item_repository_1.DynamoItemRepository();
+const category_service_1 = require("../application/category-service");
+const repository = new dynamo_category_repository_1.DynamoCategoryRepository();
 const publisher = new event_bridge_publisher_1.EventBridgePublisher(process.env.EVENT_BUS_NAME || "");
-const service = new item_service_1.ItemService(repository, publisher);
+const service = new category_service_1.CategoryService(repository, publisher);
 const baseHandler = async (event, context) => {
     observability_1.logger.addContext(context);
     const body = event.body;
     if (!body) {
         throw new error_1.AppError("Missing request body", 400);
     }
-    // Throws ZodError on failure — caught by errorHandlerMiddleware
-    const parseResult = schemas_1.CreateItemSchema.safeParse(body);
+    const parseResult = category_schemas_1.CreateCategorySchema.safeParse(body);
     if (!parseResult.success) {
         observability_1.logger.warn("Validation failed", { issues: parseResult.error.issues });
         observability_1.metrics.addMetric('ValidationErrors', metrics_1.MetricUnit.Count, 1);
-        // Throw ZodError so the centralized error handler formats it consistently
         throw parseResult.error;
     }
-    const result = await service.createItem(parseResult.data);
+    const result = await service.createCategory(parseResult.data);
     return {
         statusCode: 201,
         body: JSON.stringify(result),

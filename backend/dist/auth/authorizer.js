@@ -24,7 +24,6 @@ const handler = async (event) => {
         // Real world would be more granular or use context.
         // Resource is currently global "Resource" for simplicity in AVP schema.
         let action = "ReadDashboard"; // Default safer read action
-        const method = event.methodArn.split(':')[2]; // GET, POST, etc (Wait, methodArn format is arn:aws:execute-api:region:account:apiId/stage/method/path)
         // Actually methodArn is the ARN of the method being called.
         // But we might want to just check generic permissions.
         // Let's infer action from the request context if possible, but Token Authorizer doesn't give path directly in event root
@@ -94,13 +93,13 @@ function generatePolicy(principalId, effect, resource) {
         policyDocument: {
             Version: '2012-10-17',
             Statement: [{
-                Action: 'execute-api:Invoke',
-                Effect: effect,
-                Resource: resource,
-            }],
+                    Action: 'execute-api:Invoke',
+                    Effect: effect,
+                    Resource: resource,
+                }],
         },
         context: {
-            // Pass info to backend lambda if needed
+        // Pass info to backend lambda if needed
         }
     };
 }

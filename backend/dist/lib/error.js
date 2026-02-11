@@ -1,29 +1,16 @@
-import { APIGatewayProxyResult } from "aws-lambda";
-import { ZodError } from "zod";
-import { logger } from "./observability";
-
-/**
- * Shared error response shape returned by all API endpoints.
- * Consumers can rely on this consistent structure.
- */
-export interface ErrorResponse {
-    error: {
-        code: string;
-        message: string;
-        details?: unknown;
-        requestId?: string;
-    };
-}
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.validateOrThrow = exports.mapErrorToResponse = exports.AppError = void 0;
+const zod_1 = require("zod");
+const observability_1 = require("./observability");
 /**
  * Application error with HTTP status code and error code.
  */
-export class AppError extends Error {
-    public readonly statusCode: number;
-    public readonly code: string;
-    public readonly details?: unknown;
-
-    constructor(message: string, statusCode: number = 500, code?: string, details?: unknown) {
+class AppError extends Error {
+    statusCode;
+    code;
+    details;
+    constructor(message, statusCode = 500, code, details) {
         super(message);
         this.statusCode = statusCode;
         this.code = code || statusCodeToErrorCode(statusCode);
@@ -31,12 +18,12 @@ export class AppError extends Error {
         this.details = details;
     }
 }
-
+exports.AppError = AppError;
 /**
  * Maps an HTTP status code to a default error code string.
  */
-function statusCodeToErrorCode(statusCode: number): string {
-    const codeMap: Record<number, string> = {
+function statusCodeToErrorCode(statusCode) {
+    const codeMap = {
         400: 'BAD_REQUEST',
         401: 'UNAUTHORIZED',
         403: 'FORBIDDEN',
@@ -50,17 +37,11 @@ function statusCodeToErrorCode(statusCode: number): string {
     };
     return codeMap[statusCode] || 'INTERNAL_SERVER_ERROR';
 }
-
 /**
  * Builds a consistent ErrorResponse JSON body.
  */
-function buildErrorResponse(
-    code: string,
-    message: string,
-    details?: unknown,
-    requestId?: string
-): ErrorResponse {
-    const response: ErrorResponse = {
+function buildErrorResponse(code, message, details, requestId) {
+    const response = {
         error: {
             code,
             message,
@@ -74,64 +55,50 @@ function buildErrorResponse(
     }
     return response;
 }
-
 /**
  * Maps any thrown error to a consistent API Gateway proxy result.
  * Use this in your handler's catch block or as middleware.
  */
-export function mapErrorToResponse(error: unknown, requestId?: string): APIGatewayProxyResult {
+function mapErrorToResponse(error, requestId) {
     // Known application errors
     if (error instanceof AppError) {
         return {
             statusCode: error.statusCode,
-            body: JSON.stringify(
-                buildErrorResponse(error.code, error.message, error.details, requestId)
-            ),
+            body: JSON.stringify(buildErrorResponse(error.code, error.message, error.details, requestId)),
         };
     }
-
     // Zod validation errors
-    if (error instanceof ZodError) {
+    if (error instanceof zod_1.ZodError) {
         const details = error.issues.map(issue => ({
             path: issue.path.join('.'),
             message: issue.message,
         }));
         return {
             statusCode: 400,
-            body: JSON.stringify(
-                buildErrorResponse('VALIDATION_ERROR', 'Validation failed', details, requestId)
-            ),
+            body: JSON.stringify(buildErrorResponse('VALIDATION_ERROR', 'Validation failed', details, requestId)),
         };
     }
-
     // Unknown / unexpected errors — don't leak internals
     const message = error instanceof Error ? error.message : 'An unexpected error occurred';
-    logger.error("Unhandled error", { error });
-
+    observability_1.logger.error("Unhandled error", { error });
     return {
         statusCode: 500,
-        body: JSON.stringify(
-            buildErrorResponse('INTERNAL_SERVER_ERROR', message, undefined, requestId)
-        ),
+        body: JSON.stringify(buildErrorResponse('INTERNAL_SERVER_ERROR', message, undefined, requestId)),
     };
 }
-
+exports.mapErrorToResponse = mapErrorToResponse;
 /**
  * Convenience helper: validates Zod parse result and throws AppError on failure.
  */
-export function validateOrThrow<T>(parseResult: { success: boolean; data?: T; error?: ZodError }): T {
+function validateOrThrow(parseResult) {
     if (!parseResult.success) {
-        const zodError = (parseResult as any).error as ZodError;
+        const zodError = parseResult.error;
         const details = zodError.issues.map(issue => ({
             path: issue.path.join('.'),
             message: issue.message,
         }));
-        throw new AppError(
-            'Validation failed',
-            400,
-            'VALIDATION_ERROR',
-            details,
-        );
+        throw new AppError('Validation failed', 400, 'VALIDATION_ERROR', details);
     }
-    return (parseResult as any).data as T;
+    return parseResult.data;
 }
+exports.validateOrThrow = validateOrThrow;

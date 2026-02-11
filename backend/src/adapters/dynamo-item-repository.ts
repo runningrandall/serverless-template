@@ -32,7 +32,9 @@ const DEFAULT_PAGE_SIZE = 20;
 
 export class DynamoItemRepository implements ItemRepository {
     async create(item: Item): Promise<Item> {
-        const result = await DBService.entities.item.create(item).go();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { createdAt, ...data } = item;
+        const result = await DBService.entities.item.create(data).go();
         return parseItem(result.data);
     }
 

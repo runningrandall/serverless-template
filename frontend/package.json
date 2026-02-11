@@ -6,7 +6,7 @@
     "dev": "dotenv -e ../../.env -- next dev",
     "build": "dotenv -e ../../.env -- next build",
     "start": "dotenv -e ../../.env -- next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test:e2e": "start-server-and-test dev http://localhost:3000 'cypress run'",
     "test:e2e:open": "start-server-and-test dev http://localhost:3000 'cypress open'",
     "storybook": "storybook dev -p 6006",

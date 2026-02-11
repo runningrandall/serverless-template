@@ -3,20 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
 const observability_1 = require("../lib/observability");
 const middleware_1 = require("../lib/middleware");
-const error_1 = require("../lib/error");
-const dynamo_item_repository_1 = require("../adapters/dynamo-item-repository");
+const dynamo_category_repository_1 = require("../adapters/dynamo-category-repository");
 const event_bridge_publisher_1 = require("../adapters/event-bridge-publisher");
-const item_service_1 = require("../application/item-service");
-const repository = new dynamo_item_repository_1.DynamoItemRepository();
+const category_service_1 = require("../application/category-service");
+const repository = new dynamo_category_repository_1.DynamoCategoryRepository();
 const publisher = new event_bridge_publisher_1.EventBridgePublisher(process.env.EVENT_BUS_NAME || "");
-const service = new item_service_1.ItemService(repository, publisher);
+const service = new category_service_1.CategoryService(repository, publisher);
 const baseHandler = async (event, context) => {
     observability_1.logger.addContext(context);
-    const itemId = event.pathParameters?.itemId;
-    if (!itemId) {
-        throw new error_1.AppError("Missing itemId", 400);
-    }
-    const result = await service.getItem(itemId);
+    const limit = event.queryStringParameters?.limit
+        ? parseInt(event.queryStringParameters.limit, 10)
+        : undefined;
+    const cursor = event.queryStringParameters?.cursor || undefined;
+    const result = await service.listCategories({ limit, cursor });
     return {
         statusCode: 200,
         body: JSON.stringify(result),

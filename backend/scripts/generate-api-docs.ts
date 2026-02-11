@@ -49,6 +49,7 @@ function generateMarkdown(spec: any): string {
     if (spec.components?.securitySchemes) {
         lines.push('## Authentication');
         lines.push('');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         for (const [name, scheme] of Object.entries<any>(spec.components.securitySchemes)) {
             lines.push(`All endpoints require **${scheme.scheme} authentication** (\`${scheme.bearerFormat}\`).`);
             lines.push('');
