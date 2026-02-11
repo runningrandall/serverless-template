@@ -13,14 +13,19 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     try {
         const body = JSON.parse(event.body || '{}');
-        const { name, contact, location, imageKey } = body;
+        const { name, contact, concernType, description, dateObserved, timeObserved, location, imageKeys, captchaToken } = body;
 
-        if (!name || !location || !imageKey) {
+        if (!name || !concernType || !location || !imageKeys || imageKeys.length === 0) {
             return {
                 statusCode: 400,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-                body: JSON.stringify({ message: 'Missing required fields: name, location, imageKey' }),
+                body: JSON.stringify({ message: 'Missing required fields: name, concernType, location, imageKeys' }),
             };
+        }
+
+        // TODO: Verify captchaToken server-side via Google reCAPTCHA API
+        if (captchaToken) {
+            console.log('CAPTCHA token received, server-side verification pending');
         }
 
         const reportId = randomUUID();
@@ -31,8 +36,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             createdAt,
             name,
             contact,
+            concernType,
+            description: description || '',
+            dateObserved: dateObserved || '',
+            timeObserved: timeObserved || '',
             location, // { lat: number, lng: number }
-            imageKey,
+            imageKeys, // string[]
             status: 'NEW',
         };
 
