@@ -13,6 +13,7 @@ test('Infra Stack Created', () => {
     const infraStack = new InfraStack(app, 'InfraStack', {
         auth: authStack,
         stageName: 'test',
+        frontendUrl: 'http://localhost:3000',
     });
 
     // THEN

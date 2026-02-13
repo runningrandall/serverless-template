@@ -59,5 +59,6 @@ const authStack = new AuthStack(app, `${appName}AuthStack-${stageName}`, {
 new InfraStack(app, `${appName}InfraStack-${stageName}`, {
   env,
   auth: authStack,
-  stageName
+  stageName,
+  frontendUrl: frontendStack.nonProdBucket.bucketWebsiteUrl,
 });

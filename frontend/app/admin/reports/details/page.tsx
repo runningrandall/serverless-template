@@ -2,7 +2,7 @@
 
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,26 +42,6 @@ function ReportDetailsContent() {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-    useEffect(() => {
-        if (!id) return;
-
-        if (authStatus === 'unauthenticated') {
-            router.push('/login');
-        } else if (authStatus === 'authenticated') {
-            fetchAuthSession().then(session => {
-                const payload = session.tokens?.accessToken?.payload;
-                const userGroups = (payload?.['cognito:groups'] || []) as string[];
-
-                if (userGroups.includes('Admin') || userGroups.includes('Manager')) {
-                    setIsAuthorized(true);
-                    fetchReport(id);
-                } else {
-                    router.push('/profile'); // Not authorized
-                }
-            });
-        }
-    }, [authStatus, router, id, fetchReport]);
-
     const fetchReport = useCallback(async (reportId: string) => {
         try {
             const res = await fetch(`${API_URL}/reports/${reportId}`);
@@ -82,6 +62,26 @@ function ReportDetailsContent() {
             setLoading(false);
         }
     }, [API_URL]);
+
+    useEffect(() => {
+        if (!id) return;
+
+        if (authStatus === 'unauthenticated') {
+            router.push('/login');
+        } else if (authStatus === 'authenticated') {
+            fetchAuthSession().then(session => {
+                const payload = session.tokens?.accessToken?.payload;
+                const userGroups = (payload?.['cognito:groups'] || []) as string[];
+
+                if (userGroups.includes('Admin') || userGroups.includes('Manager')) {
+                    setIsAuthorized(true);
+                    fetchReport(id);
+                } else {
+                    router.push('/profile'); // Not authorized
+                }
+            });
+        }
+    }, [authStatus, router, id, fetchReport]);
 
     if (!id) {
         return (

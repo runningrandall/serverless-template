@@ -21,6 +21,7 @@ import { NagSuppressions } from 'cdk-nag';
 interface InfraStackProps extends cdk.StackProps {
   auth: AuthStack;
   stageName: string;
+  frontendUrl: string;
 }
 
 export class InfraStack extends cdk.Stack {
@@ -290,7 +291,7 @@ export class InfraStack extends cdk.Stack {
       environment: {
         SENDER_EMAIL: process.env.SENDER_EMAIL || 'rjadams96@gmail.com',
         RECIPIENT_EMAIL: process.env.RECIPIENT_EMAIL || 'rjadams96@gmail.com', // Default to sender for now
-        FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+        FRONTEND_URL: props.frontendUrl,
       }
     });
 
