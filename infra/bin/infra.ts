@@ -60,5 +60,5 @@ new InfraStack(app, `${appName}InfraStack-${stageName}`, {
   env,
   auth: authStack,
   stageName,
-  frontendUrl: frontendStack.nonProdBucket.bucketWebsiteUrl,
+  frontendUrl: `https://${frontendStack.distribution.distributionDomainName}`,
 });
