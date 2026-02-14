@@ -279,6 +279,14 @@ export class InfraStack extends cdk.Stack {
       }
     });
 
+    const listReportsLambda = new nodejs.NodejsFunction(this, 'listReportsLambda', {
+      entry: path.join(backendPath, 'listReports.ts'),
+      ...commonProps,
+      environment: {
+        REPORTS_TABLE: reportsTable.tableName,
+      }
+    });
+
     // Grant SES permissions - Removed as createReportLambda no longer sends emails
     // createReportLambda.addToRolePolicy(new iam.PolicyStatement({}));
 
@@ -321,6 +329,7 @@ export class InfraStack extends cdk.Stack {
 
     reportsTable.grantWriteData(createReportLambda);
     reportsTable.grantReadData(getReportLambda);
+    reportsTable.grantReadData(listReportsLambda);
     reportImagesBucket.grantPut(generateUploadUrlLambda);
     reportImagesBucket.grantRead(getReportLambda); // For checking existence if needed, or signing
     reportImagesBucket.grantReadWrite(generateUploadUrlLambda); // Access for generating presigned URL
@@ -415,6 +424,7 @@ export class InfraStack extends cdk.Stack {
     category.addMethod('DELETE', new apigateway.LambdaIntegration(deleteCategoryLambda), { authorizer });
 
     const reports = api.root.addResource('reports');
+    reports.addMethod('GET', new apigateway.LambdaIntegration(listReportsLambda), { authorizer });
     reports.addMethod('POST', new apigateway.LambdaIntegration(createReportLambda)); // Public access for simplicity, or use authorizer if needed
 
     const report = reports.addResource('{reportId}');
