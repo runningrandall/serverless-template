@@ -46,7 +46,7 @@ cdk.Tags.of(app).add('ManagedBy', 'CDK');
 // We might want to deploy this only once or have it be a singleton.
 // For simplicity, let's name it without stage name so it persists across stages?
 // OR we just deploy it every time.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 const frontendStack = new FrontendStack(app, `${appName}FrontendStack`, {
   env
 });

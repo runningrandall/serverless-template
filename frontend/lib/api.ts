@@ -2,6 +2,21 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/';
 
+
+export interface Report {
+    reportId: string;
+    createdAt: string;
+    description: string;
+    concernType: string;
+    location: {
+        lat: number;
+        lng: number;
+    };
+    imageKeys: string[];
+    emailLocation?: string;
+    imageUrls?: string[]; // Presigned URLs
+}
+
 export interface Item {
     pk: string;
     sk: string;
@@ -55,5 +70,18 @@ export async function deleteItem(itemId: string) {
         headers,
     });
     if (!res.ok) throw new Error('Failed to delete item');
+    return res.json();
+}
+
+export async function listReports(limit: number = 20, nextToken?: string | null, search?: string): Promise<{ items: Report[], nextToken: string | null }> {
+    const headers = await getHeaders();
+
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (nextToken) params.append('nextToken', nextToken);
+    if (search) params.append('search', search);
+
+    const res = await fetch(`${API_URL}reports?${params.toString()}`, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch reports');
     return res.json();
 }

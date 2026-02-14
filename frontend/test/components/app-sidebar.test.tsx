@@ -13,7 +13,7 @@ describe('AppSidebar', () => {
         );
 
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
-        expect(screen.getByText('Users')).toBeInTheDocument();
+        expect(screen.getByText('Profile')).toBeInTheDocument();
         expect(screen.getByText('Application')).toBeInTheDocument();
     });
 });

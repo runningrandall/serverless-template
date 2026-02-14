@@ -43,6 +43,12 @@ describe('DynamoItemRepository', () => {
             const result = await repo.create(sampleItem);
 
             const { createdAt, ...expectedParams } = sampleItem;
+            void createdAt; // mark as used or just remove destructuring if we don't need it.
+            // Actually, the warning said 'createdAt' is assigned but never used. 
+            // The original code was: const { createdAt, ...expectedParams } = sampleItem;
+            // It excluded createdAt from expectedParams.
+            // So we need to keep the destructuring to get expectedParams, but we should ignore createdAt.
+
             expect(mockCreate).toHaveBeenCalledWith(expectedParams);
             expect(result).toEqual(sampleItem);
         });

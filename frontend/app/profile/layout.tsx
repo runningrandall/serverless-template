@@ -2,7 +2,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { Separator } from "@/components/ui/separator"
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function ProfileLayout({ children }: { children: React.ReactNode }) {
     return (
         <SidebarProvider>
             <AppSidebar />
@@ -13,7 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </header>
                 <div className="flex flex-1 flex-col gap-4 p-4">
                     <div className="p-4 border-b">
-                        <h1 className="text-xl font-bold">Admin Dashboard</h1>
+                        <h1 className="text-xl font-bold">User Profile</h1>
                     </div>
                     {children}
                 </div>

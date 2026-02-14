@@ -12,7 +12,7 @@ export default function Login() {
 
     useEffect(() => {
         if (authStatus === 'authenticated') {
-            router.push('/profile');
+            router.push('/admin');
         }
     }, [authStatus, router]);
 

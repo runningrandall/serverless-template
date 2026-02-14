@@ -42,6 +42,13 @@ export class InfraStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT for production
     });
 
+    reportsTable.addGlobalSecondaryIndex({
+      indexName: 'ByDate',
+      partitionKey: { name: 'type', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     const reportImagesBucket = new s3.Bucket(this, 'ReportImagesBucket', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,

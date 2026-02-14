@@ -8,7 +8,7 @@ export default [
     pluginJs.configs.recommended,
     ...tseslint.configs.recommended,
     {
-        ignores: ["dist/**", "coverage/**", "node_modules/**", "cdk.out/**"]
+        ignores: ["dist/**", "coverage/**", "node_modules/**", "cdk.out/**", "bin/**/*.js", "bin/**/*.d.ts", "lib/**/*.js", "lib/**/*.d.ts", "test/**/*.js", "test/**/*.d.ts"]
     },
     {
         rules: {
