@@ -24,16 +24,6 @@ export interface Report {
     phone?: string;
 }
 
-export interface Item {
-    pk: string;
-    sk: string;
-    itemId: string;
-    name: string;
-    description: string;
-    createdAt: string;
-    updatedAt: string;
-}
-
 async function getHeaders() {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -52,33 +42,7 @@ async function getHeaders() {
     return headers;
 }
 
-export async function listItems() {
-    const headers = await getHeaders();
-    const res = await fetch(`${API_URL}/items`, { headers, cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch items');
-    return res.json();
-}
 
-export async function createItem(name: string, description: string) {
-    const headers = await getHeaders();
-    const res = await fetch(`${API_URL}/items`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ name, description }),
-    });
-    if (!res.ok) throw new Error('Failed to create item');
-    return res.json();
-}
-
-export async function deleteItem(itemId: string) {
-    const headers = await getHeaders();
-    const res = await fetch(`${API_URL}/items/${itemId}`, {
-        method: 'DELETE',
-        headers,
-    });
-    if (!res.ok) throw new Error('Failed to delete item');
-    return res.json();
-}
 
 export async function listReports(limit: number = 20, nextToken?: string | null, search?: string): Promise<{ items: Report[], nextToken: string | null }> {
     const headers = await getHeaders();

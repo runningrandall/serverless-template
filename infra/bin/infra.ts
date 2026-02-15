@@ -6,7 +6,6 @@ import { AuthStack } from '../lib/auth-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
-import * as os from 'os';
 import * as path from 'path';
 
 // Load environment variables from .env file

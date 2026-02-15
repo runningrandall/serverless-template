@@ -20,7 +20,7 @@ test('Infra Stack Created', () => {
     const template = Template.fromStack(infraStack);
 
     // Verify DynamoDB Table
-    template.resourceCountIs('AWS::DynamoDB::Table', 2);
+    template.resourceCountIs('AWS::DynamoDB::Table', 1);
     template.hasResourceProperties('AWS::DynamoDB::Table', {
         BillingMode: 'PAY_PER_REQUEST',
     });

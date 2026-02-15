@@ -28,13 +28,7 @@ export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: InfraStackProps) {
     super(scope, id, props);
 
-    // ─── 1. DynamoDB Table ───
-    const table = new dynamodb.Table(this, 'TemplateTable', {
-      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT for production
-    });
+
 
     const reportsTable = new dynamodb.Table(this, 'ReportsTable', {
       partitionKey: { name: 'reportId', type: dynamodb.AttributeType.STRING },
@@ -61,28 +55,7 @@ export class InfraStack extends cdk.Stack {
       ]
     });
 
-    // 1b. DB Seed Custom Resource
-    const seedLambda = new nodejs.NodejsFunction(this, 'seedDataLambda', {
-      entry: path.join(__dirname, '../../backend/src/handlers/seedData.ts'),
-      runtime: lambda.Runtime.NODEJS_22_X,
-      architecture: lambda.Architecture.ARM_64,
-      timeout: cdk.Duration.seconds(30),
-      environment: {
-        TABLE_NAME: table.tableName,
-      },
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
-    });
-    table.grantWriteData(seedLambda);
 
-    new cdk.CustomResource(this, 'SeedDataResource', {
-      serviceToken: seedLambda.functionArn,
-      properties: {
-        Version: '1',
-      },
-    });
 
     // ─── 2. SNS Alarm Topic ───
     const alarmTopic = new sns.Topic(this, 'AlarmTopic', {
@@ -205,9 +178,6 @@ export class InfraStack extends cdk.Stack {
     const commonProps = {
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
-      environment: {
-        TABLE_NAME: table.tableName,
-      },
       bundling: {
         minify: true,
         sourceMap: true,
@@ -217,46 +187,6 @@ export class InfraStack extends cdk.Stack {
       deadLetterQueue: lambdaDLQ,
     };
 
-    const createItemLambda = new nodejs.NodejsFunction(this, 'createItemLambda', {
-      entry: path.join(backendPath, 'createItem.ts'),
-      ...commonProps,
-    });
-
-    const getItemLambda = new nodejs.NodejsFunction(this, 'getItemLambda', {
-      entry: path.join(backendPath, 'getItem.ts'),
-      ...commonProps,
-    });
-
-    const listItemsLambda = new nodejs.NodejsFunction(this, 'listItemsLambda', {
-      entry: path.join(backendPath, 'listItems.ts'),
-      ...commonProps,
-    });
-
-    const deleteItemLambda = new nodejs.NodejsFunction(this, 'deleteItemLambda', {
-      entry: path.join(backendPath, 'deleteItem.ts'),
-      ...commonProps,
-    });
-
-    // ── Category Lambdas ──
-    const createCategoryLambda = new nodejs.NodejsFunction(this, 'createCategoryLambda', {
-      entry: path.join(backendPath, 'createCategory.ts'),
-      ...commonProps,
-    });
-
-    const getCategoryLambda = new nodejs.NodejsFunction(this, 'getCategoryLambda', {
-      entry: path.join(backendPath, 'getCategory.ts'),
-      ...commonProps,
-    });
-
-    const listCategorysLambda = new nodejs.NodejsFunction(this, 'listCategorysLambda', {
-      entry: path.join(backendPath, 'listCategorys.ts'),
-      ...commonProps,
-    });
-
-    const deleteCategoryLambda = new nodejs.NodejsFunction(this, 'deleteCategoryLambda', {
-      entry: path.join(backendPath, 'deleteCategory.ts'),
-      ...commonProps,
-    });
 
     // ── Reports Lambdas ──
     const createReportLambda = new nodejs.NodejsFunction(this, 'createReportLambda', {
@@ -317,15 +247,7 @@ export class InfraStack extends cdk.Stack {
     }));
 
     // 7. Permissions
-    table.grantWriteData(createItemLambda);
-    table.grantReadData(getItemLambda);
-    table.grantReadData(listItemsLambda);
-    table.grantWriteData(deleteItemLambda);
 
-    table.grantWriteData(createCategoryLambda);
-    table.grantReadData(getCategoryLambda);
-    table.grantReadData(listCategorysLambda);
-    table.grantWriteData(deleteCategoryLambda);
 
     reportsTable.grantWriteData(createReportLambda);
     reportsTable.grantReadData(getReportLambda);
@@ -366,21 +288,7 @@ export class InfraStack extends cdk.Stack {
       eventBusName: `TestEventBus-${props.stageName}`,
     });
 
-    const processEventLambda = new nodejs.NodejsFunction(this, 'processEventLambda', {
-      entry: path.join(backendPath, 'processEvent.ts'),
-      ...commonProps,
-    });
 
-    new events.Rule(this, 'ItemCreatedRule', {
-      eventBus: eventBus,
-      eventPattern: {
-        source: ['test.api'],
-        detailType: ['ItemCreated'],
-      },
-      targets: [new targets.LambdaFunction(processEventLambda, {
-        deadLetterQueue: lambdaDLQ,
-      })],
-    });
 
     new events.Rule(this, 'ReportCreatedRule', {
       eventBus: eventBus,
@@ -394,35 +302,13 @@ export class InfraStack extends cdk.Stack {
       })],
     });
 
-    eventBus.grantPutEventsTo(createItemLambda);
-    eventBus.grantPutEventsTo(deleteItemLambda);
-    createItemLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
-    deleteItemLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
 
-    eventBus.grantPutEventsTo(createCategoryLambda);
-    eventBus.grantPutEventsTo(deleteCategoryLambda);
-    createCategoryLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
-    deleteCategoryLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
 
     eventBus.grantPutEventsTo(createReportLambda);
     createReportLambda.addEnvironment('EVENT_BUS_NAME', eventBus.eventBusName);
 
     // ─── 10. API Gateway Routes ───
-    const items = api.root.addResource('items');
-    items.addMethod('GET', new apigateway.LambdaIntegration(listItemsLambda), { authorizer });
-    items.addMethod('POST', new apigateway.LambdaIntegration(createItemLambda), { authorizer });
 
-    const item = items.addResource('{itemId}');
-    item.addMethod('GET', new apigateway.LambdaIntegration(getItemLambda), { authorizer });
-    item.addMethod('DELETE', new apigateway.LambdaIntegration(deleteItemLambda), { authorizer });
-
-    const categories = api.root.addResource('categories');
-    categories.addMethod('GET', new apigateway.LambdaIntegration(listCategorysLambda), { authorizer });
-    categories.addMethod('POST', new apigateway.LambdaIntegration(createCategoryLambda), { authorizer });
-
-    const category = categories.addResource('{categoryId}');
-    category.addMethod('GET', new apigateway.LambdaIntegration(getCategoryLambda), { authorizer });
-    category.addMethod('DELETE', new apigateway.LambdaIntegration(deleteCategoryLambda), { authorizer });
 
     const reports = api.root.addResource('reports');
     reports.addMethod('GET', new apigateway.LambdaIntegration(listReportsLambda), { authorizer });
@@ -473,7 +359,14 @@ export class InfraStack extends cdk.Stack {
     });
 
     // ─── 12. CloudWatch Alarms ───
-    const allLambdas = [createItemLambda, getItemLambda, listItemsLambda, deleteItemLambda, createCategoryLambda, getCategoryLambda, listCategorysLambda, deleteCategoryLambda, processEventLambda, authLambda];
+    const allLambdas = [
+      createReportLambda,
+      getReportLambda,
+      listReportsLambda,
+      sendReportNotificationLambda,
+      generateUploadUrlLambda,
+      authLambda
+    ];
 
     // API Gateway 5xx error alarm
     const api5xxAlarm = new cloudwatch.Alarm(this, 'Api5xxAlarm', {
@@ -510,16 +403,7 @@ export class InfraStack extends cdk.Stack {
       alarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
     }
 
-    // DynamoDB throttle alarm
-    const dynamoThrottleAlarm = new cloudwatch.Alarm(this, 'DynamoThrottleAlarm', {
-      metric: table.metric('ReadThrottleEvents', { period: cdk.Duration.minutes(5) }),
-      threshold: 1,
-      evaluationPeriods: 2,
-      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-      alarmDescription: 'DynamoDB read throttle events detected',
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-    });
-    dynamoThrottleAlarm.addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+
 
     // ─── 13. CloudWatch Dashboard ───
     const dashboard = new cloudwatch.Dashboard(this, 'ServiceDashboard', {
@@ -571,25 +455,7 @@ export class InfraStack extends cdk.Stack {
       }),
     );
 
-    // DynamoDB widgets
-    dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: 'DynamoDB - Consumed Read/Write Capacity',
-        left: [
-          table.metricConsumedReadCapacityUnits({ period: cdk.Duration.minutes(5) }),
-          table.metricConsumedWriteCapacityUnits({ period: cdk.Duration.minutes(5) }),
-        ],
-        width: 12,
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'DynamoDB - Throttled Requests',
-        left: [
-          table.metric('ReadThrottleEvents', { period: cdk.Duration.minutes(5) }),
-          table.metric('WriteThrottleEvents', { period: cdk.Duration.minutes(5) }),
-        ],
-        width: 12,
-      }),
-    );
+
 
     // DLQ widget
     dashboard.addWidgets(
