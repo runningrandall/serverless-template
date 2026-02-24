@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/runningrandall/serverless-template/compare/v1.1.0...v1.2.0) (2026-02-24)
+
+
+### Features
+
+* implement Versa property management entity model ([b4c1642](https://github.com/runningrandall/serverless-template/commit/b4c1642fdb670a6fb2d19c873b68f9f9ad8caa5c))
+
 # [1.1.0](https://github.com/runningrandall/serverless-template/compare/v1.0.0...v1.1.0) (2026-02-15)
 
 
