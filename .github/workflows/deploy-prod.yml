@@ -1,20 +1,26 @@
-name: Deploy to Production
+name: Deploy Production
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
-  deploy-prod:
+  release:
+    name: Semantic Release
     runs-on: ubuntu-latest
-    environment: production
+    outputs:
+      released: ${{ steps.check-release.outputs.released }}
+      version: ${{ steps.check-release.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -30,14 +36,139 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Capture pre-release version
+        id: pre-release
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      - name: Check if release was created
+        id: check-release
+        run: |
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          if [ "$NEW_VERSION" != "${{ steps.pre-release.outputs.version }}" ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Release created: v$NEW_VERSION"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "No new release created"
+          fi
+
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Run Backend Tests with Coverage
+        run: pnpm --filter backend test:coverage
+
+      - name: Run Infra Tests with Coverage
+        run: pnpm --filter infra test:coverage
+
+      - name: Run Linting
+        run: pnpm --filter frontend lint
+
+  deploy:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    needs: [release, test]
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.released == 'true' && format('v{0}', needs.release.outputs.version) || github.sha }}
+
+      - name: Log deploy version
+        run: |
+          if [ "${{ needs.release.outputs.released }}" = "true" ]; then
+            echo "Deploying release v${{ needs.release.outputs.version }}"
+          else
+            echo "Deploying commit ${{ github.sha }} (no new release)"
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
           aws-region: us-east-1
 
-      - name: Deploy to Production
-        run: pnpm deploy:prod
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy Infrastructure
+        run: pnpm --filter infra run deploy --require-approval never
         env:
-          INFRA_STACK_NAME: "TestInfraStack-$STAGE_NAME"
-          FRONTEND_STACK_NAME: "TestFrontendStack"
+          STAGE_NAME: prod
+
+      - name: Generate API Docs
+        run: |
+          pnpm --filter backend gen:docs
+          mkdir -p frontend/public
+          cp docs/swagger.json frontend/public/swagger.json
+
+      - name: Build and Deploy Frontend
+        run: |
+          INFRA_STACK_NAME="VersaInfraStack-prod"
+          FRONTEND_STACK_NAME="VersaFrontendStack"
+
+          echo "Infra Stack: $INFRA_STACK_NAME"
+          echo "Frontend Stack: $FRONTEND_STACK_NAME"
+
+          # Get API URL from Infra Stack
+          API_URL=$(aws cloudformation describe-stacks --stack-name $INFRA_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          export NEXT_PUBLIC_API_URL=$API_URL
+          echo "Found API_URL: $API_URL"
+
+          # Deploy to Prod bucket at root
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ProdBucketName'].OutputValue" --output text)
+          DISTRO_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ProdDistributionId'].OutputValue" --output text)
+          export NEXT_PUBLIC_BASE_PATH=""
+          S3_DEST="s3://${BUCKET_NAME}"
+
+          echo "Building frontend for production"
+          pnpm --filter frontend run build
+
+          echo "Deploying to: $S3_DEST"
+          aws s3 sync frontend/out "$S3_DEST" --delete
+
+          # Invalidate CloudFront
+          if [ -n "$DISTRO_ID" ]; then
+            echo "Invalidating CloudFront Distribution: $DISTRO_ID"
+            aws cloudfront create-invalidation --distribution-id "$DISTRO_ID" --paths "/*"
+          fi

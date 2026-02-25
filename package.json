@@ -23,9 +23,8 @@
         "generate": "plop",
         "commit": "cz",
         "test:integration": "node scripts/integration-test.js",
-        "release": "standard-version",
-        "release:first": "standard-version --first-release",
-        "release:dry": "standard-version --dry-run"
+        "release:dry": "npx semantic-release --dry-run",
+        "dev:local": "bash scripts/dev-local.sh"
     },
     "devDependencies": {
         "@aws-sdk/client-dynamodb": "^3.987.0",
